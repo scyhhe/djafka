@@ -3,22 +3,22 @@ package main
 import (
 	"fmt"
 
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/scyhhe/djafka/internal/djafka"
 )
 
 func main() {
-	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
-		"bootstrap.servers": "localhost",
-	})
+	service, err := djafka.NewService()
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close()
+	defer service.Close()
 
-	res, err := client.GetMetadata(nil, true, 5000)
+	topics, err := service.ListTopics()
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Println(res)
+	for _, topic := range topics {
+		fmt.Println(topic)
+	}
 }

@@ -1,4 +1,4 @@
-module github.com/fistbird/djafka
+module github.com/scyhhe/djafka
 
 go 1.20
 

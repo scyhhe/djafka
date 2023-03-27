@@ -10,8 +10,8 @@ bin:
 bin/djafka: .FORCE
 	go build -o bin/djafka
 
-.PHONY: download
-download:
+.PHONY: init
+init:
 	go mod download
 
 .PHONY: clean

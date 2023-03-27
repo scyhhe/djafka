@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -16,8 +15,7 @@ func main() {
 	}
 	defer client.Close()
 
-	ctx := context.Background()
-	res, err := client.
+	res, err := client.GetMetadata(nil, true, 5000)
 	if err != nil {
 		panic(err)
 	}

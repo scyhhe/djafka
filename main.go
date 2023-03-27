@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/scyhhe/djafka/internal/djafka"
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -48,28 +49,24 @@ func (m model) View() string {
 }
 
 func main() {
-	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
-		"bootstrap.servers": "localhost",
-	})
+	service, err := djafka.NewService()
 	if err != nil {
 		panic(err)
 	}
-	defer client.Close()
+	defer service.Close()
 
-	res, err := client.GetMetadata(nil, true, 5000)
+	topics, err := service.ListTopics()
 	if err != nil {
 		panic(err)
 	}
 
 	rows := []table.Row{}
 
-	for topic, _ := range res.Topics {
+	for _, topic := range topics {
 		rows = append(rows, table.Row{
 			topic,
 		})
 	}
-
-	fmt.Println(res)
 
 	columns := []table.Column{
 		{Title: "Topic", Width: 30},

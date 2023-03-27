@@ -7,7 +7,6 @@ import (
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/scyhhe/djafka/internal/djafka"
 )
 

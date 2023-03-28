@@ -10,19 +10,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type Consumer struct {
-	GroupId         string
-	ConsumerId      string
-	State           string
-	TopicPartitions []ConsumerTopicPartition
-}
-
-type ConsumerTopicPartition struct {
-	TopicName string
-	Offset    int64
-	Partition int32
-}
-
 type DataProvider interface {
 	ListTopics() ([]string, error)
 	ListConsumerGroups() ([]string, error)

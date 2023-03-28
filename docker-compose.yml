@@ -31,7 +31,7 @@ services:
       KAFKA_JMX_OPTS: -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=broker -Dcom.sun.management.jmxremote.rmi.port=9997
 
   init-kafka:
-    image: confluentinc/cp-kafka:7.0.1
+    image: confluentinc/cp-kafka:7.3.2
     container_name: init-kafka-${CONTAINER_NAME_POSTFIX}
     depends_on:
       - broker

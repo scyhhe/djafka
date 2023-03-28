@@ -29,6 +29,10 @@ type DataProvider interface {
 	ListConsumers(groupIds []string) ([]Consumer, error)
 }
 
+type Component interface {
+	Update(tea.Msg) (Component, tea.Cmd)
+}
+
 type sessionState uint
 
 const (
@@ -43,17 +47,27 @@ var baseStyle = lipgloss.NewStyle().
 
 type model struct {
 	state           sessionState
-	connectionTable table.Model
-	selectionTable  table.Model
+	connectionTable ConnectionComponent
+	selectionTable  Table
 	topicLIst       list.Model
+	config          *Config
 	service         *Service
 }
 
 func (m *model) Init() tea.Cmd {
+	config, err := ReadConfig()
+	if err != nil {
+		panic(err)
+	}
+
 	connectionColumns := []table.Column{
 		{Title: "Connections", Width: 30},
 	}
-	connectionRows := []table.Row{{"pretty connection"}, {"lol connection"}, {"wonky connection"}}
+
+	connectionRows := []table.Row{}
+	for _, connection := range config.Connections {
+		connectionRows = append(connectionRows, table.Row{connection.Name})
+	}
 
 	selectionColumns := []table.Column{
 		{Title: "Topics", Width: 30},
@@ -70,7 +84,12 @@ func (m *model) Init() tea.Cmd {
 		panic(err)
 	}
 
-	*m = model{connectionState, connectionTable, selectionTable, topicList, service}
+	connectionComponent := ConnectionComponent{
+		Model:  connectionTable,
+		config: config,
+	}
+
+	*m = model{connectionState, connectionComponent, Table{selectionTable}, topicList, config, service}
 
 	return nil
 }
@@ -97,24 +116,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case selectionState:
 				m.state = connectionState
 			}
-		case "enter":
-			return m, tea.Batch(
-				tea.Printf("Let's go to %s!", m.focusedComponent().SelectedRow()[0]),
-			)
 		}
 	// Resizing
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
 		m.selectionTable.SetHeight((msg.Height / 2) - 4)
+
+	// Custom messages
+	case ConnectionChangedMsg:
+		panic(msg)
 	}
 
-	focusedComponent := m.focusedComponent()
-	*focusedComponent, cmd = focusedComponent.Update(msg)
+	_, cmd = m.focusedComponent().Update(msg)
+	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(append(cmds, cmd)...)
+	return m, tea.Batch(cmds...)
 }
 
-func (m *model) focusedComponent() *table.Model {
+func (m *model) focusedComponent() Component {
 	switch m.state {
 	case connectionState:
 		return &m.connectionTable
@@ -126,14 +145,14 @@ func (m *model) focusedComponent() *table.Model {
 }
 
 func (m *model) View() string {
-	connectionBorderStyle := defocusTable(&m.connectionTable)
-	selectionBorderStyle := defocusTable(&m.selectionTable)
+	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
+	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
 
 	switch m.state {
 	case connectionState:
-		connectionBorderStyle = focusTable(&m.connectionTable)
+		connectionBorderStyle = focusTable(&m.connectionTable.Model)
 	case selectionState:
-		selectionBorderStyle = focusTable(&m.selectionTable)
+		selectionBorderStyle = focusTable(&m.selectionTable.Model)
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),

@@ -199,3 +199,36 @@ func (s *Service) FetchMessages(topic string, channel chan string) error {
 
 	return nil
 }
+
+func (s *Service) ResetConsumerOffsets(group string, offset int64, partitions []ConsumerTopicPartition) error {
+	partitionArg := []kafka.TopicPartition{}
+	for _, partition := range partitions {
+		partitionArg = append(partitionArg, kafka.TopicPartition{
+			Topic:     &partition.TopicName,
+			Partition: partition.Partition,
+			Offset:    kafka.Offset(offset),
+			// Metadata:  nil,
+			// Error:     nil,
+		})
+	}
+	fmt.Println("partitionArg", partitionArg)
+	result, err := s.client.AlterConsumerGroupOffsets(context.Background(), []kafka.ConsumerGroupTopicPartitions{
+		{
+			Group:      group,
+			Partitions: partitionArg,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	for _, res := range result.ConsumerGroupsTopicPartitions {
+		for _, resPartion := range res.Partitions {
+			if resPartion.Error != nil {
+				panic(resPartion.Error)
+			}
+		}
+	}
+	fmt.Println("AlterConsumerGroupOffsets result", result)
+	return nil
+}

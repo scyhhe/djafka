@@ -99,8 +99,23 @@ func main() {
 
 	m := model{topTable, middleTable}
 
+	consumerGroups, err := service.ListConsumerGroups()
+	if err != nil {
+		panic(err)
+	}
+
+	println(consumerGroups)
+
+	consumers, err := service.ListConsumers(consumerGroups)
+	if err != nil {
+		panic(err)
+	}
+
+	println(consumers)
+
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
+
 }

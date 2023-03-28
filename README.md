@@ -1,5 +1,7 @@
 # djafka
 
+![Djafka Doggo](./doggo.png)
+
 ## Getting Started
 
 To get started you need Go >= 1.20 installed.
@@ -38,6 +40,7 @@ Inspired by Philipp and Lazygit.
 - Display and collect metrics
 - Make polling timeframes configurable
 - Notify when a consumer caught up to the latest offset
+- CI/CD with GH Actions and GH Releases
 
 ### Proposed Solution
 

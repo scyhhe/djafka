@@ -99,19 +99,33 @@ func main() {
 
 	m := model{topTable, middleTable}
 
+	topicName, err := service.CreateTopic("tschusch")
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("consumer groups:", topicName)
+
+	topics, err := service.ListTopics()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println("consumer groups:", topics)
+
 	consumerGroups, err := service.ListConsumerGroups()
 	if err != nil {
 		panic(err)
 	}
 
-	println(consumerGroups)
+	fmt.Println("consumer groups:", consumerGroups)
 
 	consumers, err := service.ListConsumers(consumerGroups)
 	if err != nil {
 		panic(err)
 	}
 
-	println(consumers)
+	fmt.Println("consumers:", consumers)
 
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)

@@ -3,6 +3,7 @@ package djafka
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
@@ -61,6 +62,18 @@ func (s *Service) ListTopics() ([]string, error) {
 	return topics, nil
 }
 
+func (s *Service) CreateTopic(name string) (string, error) {
+	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: 1, ReplicationFactor: 1, Config: map[string]string{}}
+	_, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
+
+	if err != nil {
+		return err.Error(), fmt.Errorf("Failed to create new topic: %w", err)
+	}
+
+	return topicSpec.Topic, nil
+
+}
+
 func (s *Service) ListConsumerGroups() ([]string, error) {
 	consumerGroups, err := s.client.ListConsumerGroups(context.Background())
 	if err != nil {
@@ -68,8 +81,8 @@ func (s *Service) ListConsumerGroups() ([]string, error) {
 	}
 
 	groupIds := []string{}
-	for _, asd := range consumerGroups.Valid {
-		groupIds = append(groupIds, asd.GroupID)
+	for _, group := range consumerGroups.Valid {
+		groupIds = append(groupIds, group.GroupID)
 	}
 
 	return groupIds, nil
@@ -108,5 +121,22 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 }
 
 func (s *Service) FetchMessages(topic string) ([]string, error) {
+
+	s.consumer.SubscribeTopics([]string{topic, "^aRegex.*[Tt]opic"}, nil)
+
+	for true {
+		msg, err := s.consumer.ReadMessage(time.Second)
+		if err == nil {
+			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
+		} else if !err.(kafka.Error).IsTimeout() {
+			// The client will automatically try to recover from all errors.
+			// Timeout is not considered an error because it is raised by
+			// ReadMessage in absence of messages.
+			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
+		}
+	}
+
+	s.consumer.Close()
 	return nil, nil
+
 }

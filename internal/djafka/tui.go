@@ -10,6 +10,25 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type Consumer struct {
+	GroupId         string
+	ConsumerId      string
+	State           string
+	TopicPartitions []ConsumerTopicPartition
+}
+
+type ConsumerTopicPartition struct {
+	TopicName string
+	Offset    int64
+	Partition int32
+}
+
+type DataProvider interface {
+	ListTopics() ([]string, error)
+	ListConsumerGroups() ([]string, error)
+	ListConsumers(groupIds []string) ([]Consumer, error)
+}
+
 type sessionState uint
 
 const (
@@ -27,9 +46,34 @@ type model struct {
 	connectionTable table.Model
 	selectionTable  table.Model
 	topicLIst       list.Model
+	service         *Service
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m *model) Init() tea.Cmd {
+	connectionColumns := []table.Column{
+		{Title: "Connections", Width: 30},
+	}
+	connectionRows := []table.Row{{"pretty connection"}, {"lol connection"}, {"wonky connection"}}
+
+	selectionColumns := []table.Column{
+		{Title: "Topics", Width: 30},
+	}
+	selectionRows := []table.Row{{"Topics"}, {"Consumer Groups"}, {"Info"}}
+
+	connectionTable := buildTable(connectionColumns, connectionRows)
+	selectionTable := buildTable(selectionColumns, selectionRows)
+
+	topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+
+	service, err := NewService()
+	if err != nil {
+		panic(err)
+	}
+
+	*m = model{connectionState, connectionTable, selectionTable, topicList, service}
+
+	return nil
+}
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
@@ -165,24 +209,7 @@ func buildTable(cols []table.Column, rows []table.Row) table.Model {
 }
 
 func Run() {
-	connectionColumns := []table.Column{
-		{Title: "Connections", Width: 30},
-	}
-	connectionRows := []table.Row{{"pretty connection"}, {"lol connection"}, {"wonky connection"}}
-
-	selectionColumns := []table.Column{
-		{Title: "Topics", Width: 30},
-	}
-	selectionRows := []table.Row{{"Topics"}, {"Consumer Groups"}, {"Info"}}
-
-	connectionTable := buildTable(connectionColumns, connectionRows)
-	selectionTable := buildTable(selectionColumns, selectionRows)
-
-	topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-
-	m := model{connectionState, connectionTable, selectionTable, topicList}
-
-	if _, err := tea.NewProgram(&m, tea.WithAltScreen()).Run(); err != nil {
+	if _, err := tea.NewProgram(&model{}, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}

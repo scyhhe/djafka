@@ -19,14 +19,14 @@ type Config struct {
 	Connections []Connection `json:"connections"`
 }
 
-func (c *Config) FindConnection(name string) (string, error) {
+func (c *Config) FindConnection(name string) (Connection, error) {
 	for _, conn := range c.Connections {
 		if conn.Name == name {
-			return conn.BootstrapServer, nil
+			return conn, nil
 		}
 	}
 
-	return "", fmt.Errorf("Failed to find connection for name '%s'.", name)
+	return Connection{}, fmt.Errorf("Failed to find connection for name '%s'.", name)
 }
 
 func ReadConfig() (*Config, error) {
@@ -63,7 +63,7 @@ type Service struct {
 	producer *kafka.Producer
 }
 
-func NewService() (*Service, error) {
+func NewService(conn Connection) (*Service, error) {
 	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
 	})

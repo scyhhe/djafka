@@ -5,11 +5,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type ConnectionChangedMsg string
+type ConnectionChangedMsg Connection
 
-func changeConnection(url string) tea.Cmd {
+func changeConnection(conn Connection) tea.Cmd {
 	return func() tea.Msg {
-		return ConnectionChangedMsg(url)
+		return ConnectionChangedMsg(conn)
 	}
 }
 
@@ -25,13 +25,13 @@ func (c *ConnectionComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
 	currentRow := c.SelectedRow()[0]
 
 	if prevRow != currentRow {
-		url, err := c.config.FindConnection(currentRow)
+		conn, err := c.config.FindConnection(currentRow)
 		if err != nil {
 			// TODO: Properly handle error
 			panic(err)
 		}
 
-		return c, tea.Batch(cmd, changeConnection(url))
+		return c, tea.Batch(cmd, changeConnection(conn))
 	}
 
 	return c, cmd

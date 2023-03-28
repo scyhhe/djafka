@@ -35,9 +35,8 @@ var baseStyle = lipgloss.NewStyle().
 type model struct {
 	state           sessionState
 	connectionTable ConnectionComponent
-	selectionTable  Table
+	selectionTable  Menu
 	topicLIst       list.Model
-	config          *Config
 	service         *Service
 }
 
@@ -66,7 +65,7 @@ func (m *model) Init() tea.Cmd {
 
 	topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 
-	service, err := NewService()
+	service, err := NewService(config.Connections[0])
 	if err != nil {
 		panic(err)
 	}
@@ -76,7 +75,12 @@ func (m *model) Init() tea.Cmd {
 		config: config,
 	}
 
-	*m = model{connectionState, connectionComponent, Table{selectionTable}, topicList, config, service}
+	menu := Menu{
+		Model:   selectionTable,
+		service: service,
+	}
+
+	*m = model{connectionState, connectionComponent, menu, topicList, service}
 
 	return nil
 }
@@ -111,6 +115,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Custom messages
 	case ConnectionChangedMsg:
+		m.changeConnection(Connection(msg))
+	case TopicsListedMsg:
 		panic(msg)
 	}
 
@@ -118,6 +124,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m *model) changeConnection(conn Connection) {
+	if m.service != nil {
+		m.service.Close()
+	}
+
+	service, err := NewService(conn)
+	if err != nil {
+		panic(fmt.Errorf("Failed to re-create service: %w", err))
+	}
+
+	m.service = service
 }
 
 func (m *model) focusedComponent() Component {

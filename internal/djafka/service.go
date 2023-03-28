@@ -60,7 +60,7 @@ type ConsumerTopicPartition struct {
 type Service struct {
 	client   *kafka.AdminClient
 	consumer *kafka.Consumer
-	producer *kafka.Producer
+	// producer *kafka.Producer
 }
 
 func NewService(conn Connection) (*Service, error) {
@@ -73,11 +73,11 @@ func NewService(conn Connection) (*Service, error) {
 		"group.id":          "testis",
 	})
 
-	producer, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": "localhost",
-	})
+	// producer, err := kafka.NewProducer(&kafka.ConfigMap{
+	// 	"bootstrap.servers": "localhost",
+	// })
 
-	return &Service{client, consumer, producer}, err
+	return &Service{client, consumer}, err
 }
 
 func (s *Service) Close() {
@@ -156,19 +156,19 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 	return consumers, nil
 }
 
-func (s *Service) PublishMessage(topic string, key string, message string, channel chan kafka.Event) error {
-	kafkaMsg := kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &topic,
-			Partition: kafka.PartitionAny,
-		},
-		Key:   []byte(key),
-		Value: []byte(message),
-	}
-	fmt.Println("Publishing message to %s:", topic)
-	s.producer.Produce(&kafkaMsg, channel)
-	return nil
-}
+// func (s *Service) PublishMessage(topic string, key string, message string, channel chan kafka.Event) error {
+// 	kafkaMsg := kafka.Message{
+// 		TopicPartition: kafka.TopicPartition{
+// 			Topic:     &topic,
+// 			Partition: kafka.PartitionAny,
+// 		},
+// 		Key:   []byte(key),
+// 		Value: []byte(message),
+// 	}
+// 	fmt.Println("Publishing message to %s:", topic)
+// 	s.producer.Produce(&kafkaMsg, channel)
+// 	return nil
+// }
 
 func (s *Service) FetchMessages(topic string, channel chan string) error {
 

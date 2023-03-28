@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -35,8 +34,8 @@ var baseStyle = lipgloss.NewStyle().
 type model struct {
 	state           sessionState
 	connectionTable ConnectionComponent
+	resultComponent ResultComponent
 	selectionTable  Menu
-	topicLIst       list.Model
 	service         *Service
 }
 
@@ -56,14 +55,21 @@ func (m *model) Init() tea.Cmd {
 	}
 
 	selectionColumns := []table.Column{
-		{Title: "Topics", Width: 30},
+		{Title: "Menu", Width: 30},
 	}
 	selectionRows := []table.Row{{"Topics"}, {"Consumer Groups"}, {"Info"}}
 
+	topicResultColumns := []table.Column{
+		{Title: "Topics", Width: 70},
+	}
+
+	topicResultRows := []table.Row{}
+
 	connectionTable := buildTable(connectionColumns, connectionRows)
 	selectionTable := buildTable(selectionColumns, selectionRows)
+	resultTable := buildTable(topicResultColumns, topicResultRows)
 
-	topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+	// topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 
 	service, err := NewService(config.Connections[0])
 	if err != nil {
@@ -80,7 +86,11 @@ func (m *model) Init() tea.Cmd {
 		service: service,
 	}
 
-	*m = model{connectionState, connectionComponent, menu, topicList, service}
+	resultComponent := ResultComponent{
+		Model: resultTable,
+	}
+
+	*m = model{connectionState, connectionComponent, resultComponent, menu, service}
 
 	return nil
 }
@@ -105,6 +115,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case connectionState:
 				m.state = selectionState
 			case selectionState:
+				m.state = topicListState
+			case topicListState:
 				m.state = connectionState
 			}
 		}
@@ -117,7 +129,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ConnectionChangedMsg:
 		m.changeConnection(Connection(msg))
 	case TopicsListedMsg:
-		panic(msg)
+		m.resultComponent.SetItems(msg)
 	}
 
 	_, cmd = m.focusedComponent().Update(msg)
@@ -145,6 +157,8 @@ func (m *model) focusedComponent() Component {
 		return &m.connectionTable
 	case selectionState:
 		return &m.selectionTable
+	case topicListState:
+		return &m.resultComponent
 	default:
 		panic("unhandled state")
 	}
@@ -153,18 +167,21 @@ func (m *model) focusedComponent() Component {
 func (m *model) View() string {
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
 	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
+	resultBorderStyle := defocusTable(&m.resultComponent.Model)
 
 	switch m.state {
 	case connectionState:
 		connectionBorderStyle = focusTable(&m.connectionTable.Model)
 	case selectionState:
 		selectionBorderStyle = focusTable(&m.selectionTable.Model)
+	case topicListState:
+		resultBorderStyle = focusTable(&m.resultComponent.Model)
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
-	return menuPane
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultBorderStyle.Render(m.resultComponent.View()))
 }
 
 func makeFocused(s lipgloss.Style) lipgloss.Style {

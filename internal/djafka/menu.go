@@ -30,8 +30,12 @@ func (m *Menu) Update(msg tea.Msg) (Component, tea.Cmd) {
 	m.Model = newTable
 	currentRow := m.SelectedRow()[0]
 
-	if prevRow != currentRow {
-		return m, tea.Batch(cmd, listTopics(m.service))
+	hasRowChanged := prevRow != currentRow
+
+	if hasRowChanged {
+		if currentRow == "Topics" {
+			return m, tea.Batch(cmd, listTopics(m.service))
+		}
 	}
 
 	return m, cmd

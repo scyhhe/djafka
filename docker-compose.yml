@@ -51,5 +51,9 @@ services:
       echo -e 'Successfully created the following topics:'
       kafka-topics --bootstrap-server broker:29092 --list
 
-      kafka-console-consumer --bootstrap-server localhost:29092 --topic test-topic-2 --from-beginning
+      kafka-console-consumer --bootstrap-server broker:29092 --topic test-topic-1 --from-beginning --group consumer-group-1
+      kafka-console-consumer --bootstrap-server broker:29092 --topic test-topic-2 --from-beginning --group consumer-group-2
+      kafka-console-consumer --bootstrap-server broker:29092 --topic test-topic-3 --from-beginning --group consumer-group-3
+      echo -e "Current groups:"
+      kafka-consumer-group  --bootstrap-server broker:29092 --list
       "

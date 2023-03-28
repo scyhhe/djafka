@@ -101,7 +101,7 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 			consumer.ConsumerId = member.ConsumerID
 			consumer.TopicPartitions = ctp
 		}
-		consumers = append(consumers)
+		consumers = append(consumers, consumer)
 	}
 
 	return consumers, nil

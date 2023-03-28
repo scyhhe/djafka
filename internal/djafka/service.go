@@ -120,13 +120,38 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 	return consumers, nil
 }
 
-func (s *Service) FetchMessages(topic string) ([]string, error) {
+func (s *Service) PublishMessage(topic string, key string, message string, channel chan kafka.Event) error {
+	kafkaMsg := kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &topic,
+			Partition: kafka.PartitionAny,
+		},
+		Key:   []byte(key),
+		Value: []byte(message),
+	}
+	fmt.Println("Publishing message to %s:", topic)
+	s.producer.Produce(&kafkaMsg, channel)
+	return nil
+}
 
-	s.consumer.SubscribeTopics([]string{topic, "^aRegex.*[Tt]opic"}, nil)
+func (s *Service) FetchMessages(topic string, channel chan string) error {
 
-	for true {
+	s.consumer.SubscribeTopics([]string{topic}, nil)
+	defer s.consumer.Close()
+
+	running := true
+
+	for running {
+		select {
+		case receivedMsg := <-channel:
+			fmt.Println(receivedMsg)
+			running = false
+		default:
+		}
 		msg, err := s.consumer.ReadMessage(time.Second)
+
 		if err == nil {
+			channel <- msg.String()
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
 		} else if !err.(kafka.Error).IsTimeout() {
 			// The client will automatically try to recover from all errors.
@@ -136,7 +161,5 @@ func (s *Service) FetchMessages(topic string) ([]string, error) {
 		}
 	}
 
-	s.consumer.Close()
-	return nil, nil
-
+	return nil
 }

@@ -104,6 +104,11 @@ func main() {
 		panic(err)
 	}
 
+	err = service.PublishMessage(topicName, "1", "Vasko", nil)
+	if err != nil {
+		panic(err)
+	}
+
 	fmt.Println("consumer groups:", topicName)
 
 	topics, err := service.ListTopics()
@@ -126,6 +131,23 @@ func main() {
 	}
 
 	fmt.Println("consumers:", consumers)
+
+	messageChan := make(chan string)
+
+	err = service.FetchMessages(topicName, messageChan)
+
+	allMessages := []string{}
+	for msg := range messageChan {
+		allMessages = append(allMessages, msg)
+		messageChan <- "STOP"
+		break
+	}
+
+	fmt.Println("Messages:", allMessages)
+
+	// if err != nil {
+	// 	messageChan <- "STOP"
+	// }
 
 	if _, err := tea.NewProgram(m).Run(); err != nil {
 		fmt.Println("Error running program:", err)

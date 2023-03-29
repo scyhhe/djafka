@@ -144,6 +144,7 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 			ctp := []ConsumerTopicPartition{}
 
 			for _, topicParts := range member.Assignment.TopicPartitions {
+				fmt.Println("Topic Metadata", topicParts.Metadata)
 				ctp = append(ctp, ConsumerTopicPartition{*topicParts.Topic, int64(topicParts.Offset), topicParts.Partition})
 			}
 
@@ -200,18 +201,30 @@ func (s *Service) FetchMessages(topic string, channel chan string) error {
 	return nil
 }
 
-func (s *Service) ResetConsumerOffsets(group string, offset int64, partitions []ConsumerTopicPartition) error {
+func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {
+	result, err := s.client.GetMetadata(&topic, false, 5000)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("GetTopicMetadata.getTopicMetadataResult", result)
+	return result.Topics[topic], nil
+}
+
+func (s *Service) ResetConsumerOffsets(group string, topic string, offset int64) error {
+	topicMetadata, err := s.GetTopicMetadata(topic)
+	if err != nil {
+		panic(err)
+	}
+
 	partitionArg := []kafka.TopicPartition{}
-	for _, partition := range partitions {
+	for _, partition := range topicMetadata.Partitions {
 		partitionArg = append(partitionArg, kafka.TopicPartition{
-			Topic:     &partition.TopicName,
-			Partition: partition.Partition,
+			Topic:     &topic,
+			Partition: partition.ID,
 			Offset:    kafka.Offset(offset),
-			// Metadata:  nil,
-			// Error:     nil,
 		})
 	}
-	fmt.Println("partitionArg", partitionArg)
+	fmt.Println("ResetConsumerOffsets.partitionArg", partitionArg)
 	result, err := s.client.AlterConsumerGroupOffsets(context.Background(), []kafka.ConsumerGroupTopicPartitions{
 		{
 			Group:      group,
@@ -229,6 +242,6 @@ func (s *Service) ResetConsumerOffsets(group string, offset int64, partitions []
 			}
 		}
 	}
-	fmt.Println("AlterConsumerGroupOffsets result", result)
+	fmt.Println("ResetConsumerOffsets.AlterConsumerGroupOffsets result", result)
 	return nil
 }

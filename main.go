@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/scyhhe/djafka/internal/djafka"
 )
@@ -13,17 +15,25 @@ func main() {
 	}
 	defer service.Close()
 
-	topicName, err := service.CreateTopic("tschusch", 1)
+	topic, err := service.CreateTopic("tschusch", 1)
 	if err != nil {
 		panic(err)
 	}
 
-	err = service.PublishMessage(topicName.Name, "1", "Vasko", nil)
-	if err != nil {
-		panic(err)
-	}
+	// Publish test messages.
+	go func() {
+		i := 0
+		for {
+			err = service.PublishMessage(topic.Name, "1", "Vasko-"+strconv.Itoa(i), nil)
+			if err != nil {
+				panic(err)
+			}
+			i++
+			time.Sleep(time.Second)
+		}
+	}()
 
-	fmt.Println("consumer groups:", topicName)
+	fmt.Println("consumer groups:", topic)
 
 	topics, err := service.ListTopics()
 	if err != nil {
@@ -46,23 +56,17 @@ func main() {
 
 	fmt.Println("consumers:", consumers)
 
-	_, err = service.FetchMessages(topicName.Name)
+	control, output, err := service.FetchMessages(topic.Name)
 	if err != nil {
 		panic(err)
 	}
 
-	allMessages := []string{}
-	// for msg := range messageChan {
-	// 	allMessages = append(allMessages, msg)
-	// 	messageChan <- "STOP"
-	// 	break
-	// }
+	for i := 10; i > 0; i-- {
+		msg := <-output
+		fmt.Printf("Received message: %s\n", string(msg.Value))
+	}
+	fmt.Println("end")
+	close(control)
 
-	fmt.Println("Messages:", allMessages)
-
-	// if err != nil {
-	// 	messageChan <- "STOP"
-	// }
-
-	djafka.Run()
+	// djafka.Run()
 }

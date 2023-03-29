@@ -3,7 +3,6 @@ package djafka
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -198,40 +197,37 @@ func (s *Service) PublishMessage(topic string, key string, message string, chann
 	return nil
 }
 
-func (s *Service) FetchMessages(topic string) (chan string, error) {
-	channel := make(chan string)
+func (s *Service) FetchMessages(topic string) (chan struct{}, chan kafka.Message, error) {
+	control := make(chan struct{})
+	output := make(chan kafka.Message)
 
-	if err := s.consumer.SubscribeTopics([]string{topic}, nil); err != nil {
-		return nil, fmt.Errorf("Failed to subscribe to topics: %w", err)
+	rebalance := func(c *kafka.Consumer, evt kafka.Event) error { return nil }
+	if err := s.consumer.SubscribeTopics([]string{topic}, rebalance); err != nil {
+		return nil, nil, fmt.Errorf("Failed to subscribe to topics: %w", err)
 	}
-	defer s.consumer.Close()
 
 	go func() {
-		defer close(channel)
+		defer close(output)
 
 		for {
-			// select {
-			// case receivedMsg := <-channel:
-			// 	fmt.Println(receivedMsg)
-			// 	return
-			// default:
-			// }
+			select {
+			case _, open := <-control:
+				if !open {
+					return
+				}
+			default:
+			}
+
 			msg, err := s.consumer.ReadMessage(time.Second)
-			kafkaErr := kafka.Error{}
-			if err != nil && !errors.As(err, &kafkaErr) {
-				fmt.Printf("Failed to read message: %v", err)
-				return
+			if err != nil {
+				fmt.Printf("Failed to read message: %v\n", err)
+			} else {
+				output <- *msg
 			}
-
-			if err == nil {
-				fmt.Printf("Message on %s: %s\n", msg.TopicPartition, msg.String())
-			}
-
-			// channel <- msg.String()
 		}
 	}()
 
-	return channel, nil
+	return control, output, nil
 }
 
 func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {

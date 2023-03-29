@@ -67,8 +67,6 @@ func (m *model) Init() tea.Cmd {
 	selectionTable := buildTable(selectionColumns, selectionRows)
 	resultTable := buildTable(topicResultColumns, topicResultRows)
 
-	// topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
-
 	connectionComponent := ConnectionComponent{
 		Model:  connectionTable,
 		config: config,
@@ -134,6 +132,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
 		m.selectionTable.SetHeight((msg.Height / 2) - 4)
+		m.resultComponent.SetHeight((msg.Height / 2) - 4)
 
 	// Custom messages
 	case ConnectionChangedMsg:

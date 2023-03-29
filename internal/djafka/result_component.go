@@ -53,6 +53,7 @@ func (c *ResultComponent) SetTopics(items []string) {
 		rows = append(rows, table.Row{item})
 	}
 	c.Model.SetRows(rows)
+	c.Model.SetCursor(0)
 }
 
 func (c *ResultComponent) SetConsumers(items []Consumer) {
@@ -61,4 +62,5 @@ func (c *ResultComponent) SetConsumers(items []Consumer) {
 		rows = append(rows, table.Row{item.ConsumerId, item.GroupId, item.State})
 	}
 	c.Model.SetRows(rows)
+	c.Model.SetCursor(0)
 }

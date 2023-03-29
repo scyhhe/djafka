@@ -144,7 +144,6 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 			ctp := []ConsumerTopicPartition{}
 
 			for _, topicParts := range member.Assignment.TopicPartitions {
-				fmt.Println("Topic Metadata", topicParts.Metadata)
 				ctp = append(ctp, ConsumerTopicPartition{*topicParts.Topic, int64(topicParts.Offset), topicParts.Partition})
 			}
 

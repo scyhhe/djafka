@@ -2,6 +2,7 @@ package djafka
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -13,10 +14,6 @@ type DataProvider interface {
 	ListTopics() ([]string, error)
 	ListConsumerGroups() ([]string, error)
 	ListConsumers(groupIds []string) ([]Consumer, error)
-}
-
-type Component interface {
-	Update(tea.Msg) (Component, tea.Cmd)
 }
 
 type sessionState uint
@@ -32,6 +29,7 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type model struct {
+	logger          *log.Logger
 	state           sessionState
 	connectionTable ConnectionComponent
 	resultComponent ResultComponent
@@ -71,33 +69,45 @@ func (m *model) Init() tea.Cmd {
 
 	// topicList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 
-	service, err := NewService(config.Connections[0])
-	if err != nil {
-		panic(err)
-	}
-
 	connectionComponent := ConnectionComponent{
 		Model:  connectionTable,
 		config: config,
 	}
 
 	menu := Menu{
-		Model:   selectionTable,
-		service: service,
+		Model: selectionTable,
 	}
 
 	resultComponent := ResultComponent{
 		Model: resultTable,
 	}
 
-	*m = model{connectionState, connectionComponent, resultComponent, menu, service}
+	*m = model{m.logger, connectionState, connectionComponent, resultComponent, menu, nil}
 
-	return nil
+	return changeConnection(config.Connections[0])
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.logger.Printf("Received tea.Msg: %T\n", msg)
+
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
+
+	m.connectionTable.Blur()
+	m.selectionTable.Blur()
+	m.resultComponent.Blur()
+
+	switch m.state {
+	case connectionState:
+		m.connectionTable.Focus()
+	case selectionState:
+		m.selectionTable.Focus()
+	case topicListState:
+		m.resultComponent.Focus()
+	default:
+		panic("unhandled state")
+	}
+
 	switch msg := msg.(type) {
 	// Key presses
 	case tea.KeyMsg:
@@ -127,40 +137,51 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Custom messages
 	case ConnectionChangedMsg:
-		m.changeConnection(Connection(msg))
-	case TopicsListedMsg:
+		cmd := m.changeConnection(Connection(msg))
+		cmds = append(cmds, cmd)
+	case TopicsSelectedMsg:
+		cmd := m.loadTopics()
+		cmds = append(cmds, cmd)
+	case TopicsLoadedMsg:
 		m.resultComponent.SetItems(msg)
 	}
 
-	_, cmd = m.focusedComponent().Update(msg)
+	m.connectionTable, cmd = m.connectionTable.Update(msg)
+	cmds = append(cmds, cmd)
+	m.selectionTable, cmd = m.selectionTable.Update(msg)
+	cmds = append(cmds, cmd)
+	m.resultComponent, cmd = m.resultComponent.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m *model) changeConnection(conn Connection) {
-	if m.service != nil {
-		m.service.Close()
-	}
+func (m *model) changeConnection(conn Connection) tea.Cmd {
+	return func() tea.Msg {
+		if m.service != nil {
+			m.service.Close()
+		}
 
-	service, err := NewService(conn)
-	if err != nil {
-		panic(fmt.Errorf("Failed to re-create service: %w", err))
-	}
+		service, err := NewService(conn)
+		if err != nil {
+			panic(fmt.Errorf("Failed to re-create service: %w", err))
+		}
 
-	m.service = service
+		m.service = service
+
+		return ClientConnectedMsg{}
+	}
 }
 
-func (m *model) focusedComponent() Component {
-	switch m.state {
-	case connectionState:
-		return &m.connectionTable
-	case selectionState:
-		return &m.selectionTable
-	case topicListState:
-		return &m.resultComponent
-	default:
-		panic("unhandled state")
+func (m *model) loadTopics() tea.Cmd {
+	return func() tea.Msg {
+		topics, err := m.service.ListTopics()
+		if err != nil {
+			// TODO: Do properly :')
+			panic(err)
+		}
+
+		return TopicsLoadedMsg(topics)
 	}
 }
 
@@ -181,7 +202,9 @@ func (m *model) View() string {
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultBorderStyle.Render(m.resultComponent.View()))
+	rightPane := resultBorderStyle.Render(m.resultComponent.View())
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, rightPane)
 }
 
 func makeFocused(s lipgloss.Style) lipgloss.Style {
@@ -251,7 +274,16 @@ func buildTable(cols []table.Column, rows []table.Row) table.Model {
 }
 
 func Run() {
-	if _, err := tea.NewProgram(&model{}, tea.WithAltScreen()).Run(); err != nil {
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	logger := log.Default()
+	logger.SetOutput(f)
+
+	if _, err := tea.NewProgram(&model{logger: logger}, tea.WithAltScreen()).Run(); err != nil {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}

@@ -5,8 +5,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type ConnectionChangedMsg Connection
-
 func changeConnection(conn Connection) tea.Cmd {
 	return func() tea.Msg {
 		return ConnectionChangedMsg(conn)
@@ -18,7 +16,7 @@ type ConnectionComponent struct {
 	config *Config
 }
 
-func (c *ConnectionComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
+func (c ConnectionComponent) Update(msg tea.Msg) (ConnectionComponent, tea.Cmd) {
 	prevRow := c.SelectedRow()[0]
 	newTable, cmd := c.Model.Update(msg)
 	c.Model = newTable

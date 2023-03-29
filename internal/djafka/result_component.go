@@ -9,7 +9,7 @@ type ResultComponent struct {
 	table.Model
 }
 
-func (c *ResultComponent) Update(msg tea.Msg) (Component, tea.Cmd) {
+func (c ResultComponent) Update(msg tea.Msg) (ResultComponent, tea.Cmd) {
 	newTable, cmd := c.Model.Update(msg)
 	c.Model = newTable
 

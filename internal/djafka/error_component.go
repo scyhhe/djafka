@@ -33,7 +33,7 @@ func (c ErrorComponent) View() string {
 	body := lipgloss.NewStyle().
 		Width(50).
 		Align(lipgloss.Center).
-		Render("Error")
+		Render(c.Message)
 
 	anyKey := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#555555")).

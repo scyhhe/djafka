@@ -120,10 +120,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errorComponent, cmd = m.errorComponent.Update(msg)
 		cmds = append(cmds, cmd)
 
-		_, isKeyMsg := msg.(tea.KeyMsg)
+		keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 		if isKeyMsg {
-			m.restoreState()
-			cmds = append(cmds, reset())
+			switch keyMsg.String() {
+			case QUIT, CANCEL:
+				return m, tea.Quit
+			default:
+				m.restoreState()
+				cmds = append(cmds, reset())
+			}
 		}
 
 		return m, tea.Batch(cmds...)
@@ -210,7 +215,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.detailsComponent.SetConsumerDetails(Consumer(msg))
 	case ErrorMsg:
-		m.triggerErrorState()
+		m.triggerErrorState(msg)
 	}
 
 	m.errorComponent, cmd = m.errorComponent.Update(msg)
@@ -227,9 +232,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *model) triggerErrorState() {
+func (m *model) triggerErrorState(err error) {
 	m.previousState = m.state
 	m.state = errorState
+	m.errorComponent.Message = err.Error()
 }
 
 func (m *model) restoreState() {
@@ -244,7 +250,7 @@ func (m *model) changeConnection(conn Connection) tea.Cmd {
 
 		service, err := NewService(conn)
 		if err != nil {
-			return sendError(fmt.Errorf("Failed to re-create service: %w", err))
+			return ErrorMsg(fmt.Errorf("Failed to re-create service: %w", err))
 		}
 
 		m.service = service
@@ -257,7 +263,7 @@ func (m *model) loadTopics() tea.Cmd {
 	return func() tea.Msg {
 		topics, err := m.service.ListTopics()
 		if err != nil {
-			return sendError(err)
+			return ErrorMsg(err)
 		}
 
 		return TopicsLoadedMsg(topics)
@@ -268,20 +274,18 @@ func (m *model) loadConsumers() tea.Cmd {
 	return func() tea.Msg {
 		consumerGroups, err := m.service.ListConsumerGroups()
 		if err != nil {
-			// TODO: Do properly :')
-			panic(err)
+			return ErrorMsg(err)
 		}
 		consumers, err := m.service.ListConsumers(consumerGroups)
 		if err != nil {
-			// TODO: Do properly :')
-			panic(err)
+			return ErrorMsg(err)
 		}
 
 		return ConsumersLoadedMsg(consumers)
 	}
 }
 
-func sendError(err error) tea.Cmd {
+func sendErrorCmd(err error) tea.Cmd {
 	return func() tea.Msg {
 		return ErrorMsg(err)
 	}

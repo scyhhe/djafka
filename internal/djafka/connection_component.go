@@ -22,11 +22,11 @@ func (c ConnectionComponent) Update(msg tea.Msg) (ConnectionComponent, tea.Cmd) 
 	c.Model = newTable
 	currentRow := c.SelectedRow()[0]
 
-	if prevRow != currentRow {
+	_, isReset := msg.(ResetMsg)
+	if prevRow != currentRow || isReset {
 		conn, err := c.config.FindConnection(currentRow)
 		if err != nil {
-			// TODO: Properly handle error
-			panic(err)
+			return c, sendError(err)
 		}
 
 		return c, tea.Batch(cmd, changeConnection(conn))

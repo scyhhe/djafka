@@ -3,6 +3,7 @@ package djafka
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -13,7 +14,7 @@ import (
 type Service struct {
 	client   *kafka.AdminClient
 	consumer *kafka.Consumer
-	// producer *kafka.Producer
+	producer *kafka.Producer
 }
 
 type Connection struct {
@@ -83,11 +84,11 @@ func NewService(conn Connection) (*Service, error) {
 		"group.id":          "testis",
 	})
 
-	// producer, err := kafka.NewProducer(&kafka.ConfigMap{
-	// 	"bootstrap.servers": "localhost",
-	// })
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{
+		"bootstrap.servers": "localhost",
+	})
 
-	return &Service{client, consumer}, err
+	return &Service{client, consumer, producer}, err
 }
 
 func (s *Service) Close() {
@@ -183,48 +184,54 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 	return consumers, nil
 }
 
-// func (s *Service) PublishMessage(topic string, key string, message string, channel chan kafka.Event) error {
-// 	kafkaMsg := kafka.Message{
-// 		TopicPartition: kafka.TopicPartition{
-// 			Topic:     &topic,
-// 			Partition: kafka.PartitionAny,
-// 		},
-// 		Key:   []byte(key),
-// 		Value: []byte(message),
-// 	}
-// 	fmt.Println("Publishing message to %s:", topic)
-// 	s.producer.Produce(&kafkaMsg, channel)
-// 	return nil
-// }
+func (s *Service) PublishMessage(topic string, key string, message string, channel chan kafka.Event) error {
+	kafkaMsg := kafka.Message{
+		TopicPartition: kafka.TopicPartition{
+			Topic:     &topic,
+			Partition: kafka.PartitionAny,
+		},
+		Key:   []byte(key),
+		Value: []byte(message),
+	}
+	fmt.Printf("Publishing message to %s:\n", topic)
+	s.producer.Produce(&kafkaMsg, channel)
+	return nil
+}
 
-func (s *Service) FetchMessages(topic string, channel chan string) error {
+func (s *Service) FetchMessages(topic string) (chan string, error) {
+	channel := make(chan string)
 
-	s.consumer.SubscribeTopics([]string{topic}, nil)
+	if err := s.consumer.SubscribeTopics([]string{topic}, nil); err != nil {
+		return nil, fmt.Errorf("Failed to subscribe to topics: %w", err)
+	}
 	defer s.consumer.Close()
 
-	running := true
+	go func() {
+		defer close(channel)
 
-	for running {
-		select {
-		case receivedMsg := <-channel:
-			fmt.Println(receivedMsg)
-			running = false
-		default:
+		for {
+			// select {
+			// case receivedMsg := <-channel:
+			// 	fmt.Println(receivedMsg)
+			// 	return
+			// default:
+			// }
+			msg, err := s.consumer.ReadMessage(time.Second)
+			kafkaErr := kafka.Error{}
+			if err != nil && !errors.As(err, &kafkaErr) {
+				fmt.Printf("Failed to read message: %v", err)
+				return
+			}
+
+			if err == nil {
+				fmt.Printf("Message on %s: %s\n", msg.TopicPartition, msg.String())
+			}
+
+			// channel <- msg.String()
 		}
-		msg, err := s.consumer.ReadMessage(time.Second)
+	}()
 
-		if err == nil {
-			channel <- msg.String()
-			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
-		} else if !err.(kafka.Error).IsTimeout() {
-			// The client will automatically try to recover from all errors.
-			// Timeout is not considered an error because it is raised by
-			// ReadMessage in absence of messages.
-			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
-		}
-	}
-
-	return nil
+	return channel, nil
 }
 
 func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {

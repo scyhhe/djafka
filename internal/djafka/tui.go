@@ -31,15 +31,15 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type model struct {
-	logger          *log.Logger
-	state           sessionState
-	previousState   sessionState
-	errorComponent  ErrorComponent
-	connectionTable ConnectionComponent
-	resultTable     ResultComponent
-	detailsTable    DetailsComponent
-	selectionTable  Menu
-	service         *Service
+	logger           *log.Logger
+	state            sessionState
+	previousState    sessionState
+	errorComponent   ErrorComponent
+	connectionTable  ConnectionComponent
+	resultComponent  ResultComponent
+	detailsComponent DetailsComponent
+	selectionTable   Menu
+	service          *Service
 }
 
 func (m *model) Init() tea.Cmd {
@@ -91,21 +91,20 @@ func (m *model) Init() tea.Cmd {
 		Model: resultTable,
 	}
 
-
 	detailsComponent := DetailsComponent{
 		Model: detailsTable,
 	}
 
 	*m = model{
-		logger:          m.logger,
-		state:           connectionState,
-		previousState:   connectionState,
-		errorComponent:  ErrorComponent{},
-		connectionTable: connectionComponent,
-		resultComponent: resultComponent,
-    detailsComponent: detailsComponent,
-		selectionTable:  menu,
-		service:         nil,
+		logger:           m.logger,
+		state:            connectionState,
+		previousState:    connectionState,
+		errorComponent:   ErrorComponent{},
+		connectionTable:  connectionComponent,
+		resultComponent:  resultComponent,
+		detailsComponent: detailsComponent,
+		selectionTable:   menu,
+		service:          nil,
 	}
 
 	return changeConnection(config.Connections[0])
@@ -132,8 +131,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	m.connectionTable.Blur()
 	m.selectionTable.Blur()
-	m.resultTable.Blur()
-	m.detailsTable.Blur()
+	m.resultComponent.Blur()
+	m.detailsComponent.Blur()
 
 	switch m.state {
 	case connectionState:
@@ -141,9 +140,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case selectionState:
 		m.selectionTable.Focus()
 	case resultState:
-		m.resultTable.Focus()
+		m.resultComponent.Focus()
 	case detailsState:
-		m.detailsTable.Focus()
+		m.detailsComponent.Focus()
 	default:
 		panic("unhandled state")
 	}
@@ -176,26 +175,26 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
 		m.selectionTable.SetHeight((msg.Height / 2) - 4)
-		m.resultTable.SetHeight((msg.Height / 2) - 4)
+		m.resultComponent.SetHeight((msg.Height / 2) - 4)
 
 	// Custom messages
 	case ConnectionChangedMsg:
 		cmd := m.changeConnection(Connection(msg))
 		cmds = append(cmds, cmd)
 	case TopicsSelectedMsg:
-		m.resultTable.SetRows([]table.Row{})
-		m.resultTable.SetColumns([]table.Column{
+		m.resultComponent.SetRows([]table.Row{})
+		m.resultComponent.SetColumns([]table.Column{
 			{Title: TopicsLabel, Width: 60},
 		})
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
 	case TopicsLoadedMsg:
-		m.resultTable.SetTopics(msg)
+		m.resultComponent.SetTopics(msg)
 	case ConsumersLoadedMsg:
-		m.resultTable.SetConsumers(msg)
+		m.resultComponent.SetConsumers(msg)
 	case ConsumersSelectedMsg:
-		m.resultTable.SetRows([]table.Row{})
-		m.resultTable.SetColumns([]table.Column{
+		m.resultComponent.SetRows([]table.Row{})
+		m.resultComponent.SetColumns([]table.Column{
 			{Title: ConsumerIdLabel, Width: 30},
 			{Title: GroupIdLabel, Width: 20},
 			{Title: StateLabel, Width: 10},
@@ -203,13 +202,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.loadConsumers()
 		cmds = append(cmds, cmd)
 	case ConsumerSelectedMsg:
-		m.detailsTable.SetRows([]table.Row{})
-		m.detailsTable.SetColumns([]table.Column{
+		m.detailsComponent.SetRows([]table.Row{})
+		m.detailsComponent.SetColumns([]table.Column{
 			{Title: "Topic Name", Width: 30},
 			{Title: "Offset", Width: 20},
 			{Title: "Partition", Width: 10},
 		})
-		m.detailsTable.SetConsumerDetails(Consumer(msg))
+		m.detailsComponent.SetConsumerDetails(Consumer(msg))
 	case ErrorMsg:
 		m.triggerErrorState()
 	}
@@ -220,9 +219,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.selectionTable, cmd = m.selectionTable.Update(msg)
 	cmds = append(cmds, cmd)
-	m.resultTable, cmd = m.resultTable.Update(msg)
+	m.resultComponent, cmd = m.resultComponent.Update(msg)
 	cmds = append(cmds, cmd)
-	m.detailsTable, cmd = m.detailsTable.Update(msg)
+	m.detailsComponent, cmd = m.detailsComponent.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -279,6 +278,7 @@ func (m *model) loadConsumers() tea.Cmd {
 		}
 
 		return ConsumersLoadedMsg(consumers)
+	}
 }
 
 func sendError(err error) tea.Cmd {
@@ -300,8 +300,8 @@ func (m *model) View() string {
 
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
 	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
-	resultBorderStyle := defocusTable(&m.resultTable.Model)
-	detailsBorderStyle := defocusTable(&m.detailsTable.Model)
+	resultBorderStyle := defocusTable(&m.resultComponent.Model)
+	detailsBorderStyle := defocusTable(&m.detailsComponent.Model)
 
 	switch m.state {
 	case connectionState:
@@ -309,16 +309,16 @@ func (m *model) View() string {
 	case selectionState:
 		selectionBorderStyle = focusTable(&m.selectionTable.Model)
 	case resultState:
-		resultBorderStyle = focusTable(&m.resultTable.Model)
+		resultBorderStyle = focusTable(&m.resultComponent.Model)
 	case detailsState:
-		detailsBorderStyle = focusTable(&m.detailsTable.Model)
+		detailsBorderStyle = focusTable(&m.detailsComponent.Model)
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
-	resultPane := resultBorderStyle.Render(m.resultTable.View())
-	detailsPane := detailsBorderStyle.Render(m.detailsTable.View())
+	resultPane := resultBorderStyle.Render(m.resultComponent.View())
+	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 
 	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane)
 

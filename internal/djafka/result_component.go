@@ -5,29 +5,45 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func selectConsumer() tea.Cmd {
+func selectConsumer(c Consumer) tea.Cmd {
 	return func() tea.Msg {
-		return ConsumerSelectedMsg{}
+		return ConsumerSelectedMsg(c)
 	}
 }
 
 type ResultComponent struct {
 	table.Model
+	consumers map[string]Consumer
 }
 
 func (c ResultComponent) Update(msg tea.Msg) (ResultComponent, tea.Cmd) {
-	// prevRow := c.SelectedRow()[0]
-	newTable, cmd := c.Model.Update(msg)
-	c.Model = newTable
-	// currentRow := c.SelectedRow()[0]
 
-	// hasRowChanged := prevRow != currentRow
+	switch msg := msg.(type) {
+	case ConsumersLoadedMsg:
+		c.SetConsumers(msg)
+		consumers := map[string]Consumer{}
 
-	// if hasRowChanged {
-	// 	selectConsumer()
-	// }
+		for _, item := range msg {
+			consumers[item.ConsumerId] = item
+		}
 
-	return c, cmd
+		c.consumers = consumers
+		return c, selectConsumer(msg[0])
+
+	default:
+		if len(c.Rows()) > 0 {
+			prevRow := c.SelectedRow()[0]
+			newTable, cmd := c.Model.Update(msg)
+			c.Model = newTable
+			currentRow := c.SelectedRow()[0]
+
+			if prevRow != currentRow {
+				return c, tea.Batch(cmd, selectConsumer(c.consumers[currentRow]))
+			}
+		}
+	}
+
+	return c, nil
 }
 
 func (c *ResultComponent) SetTopics(items []string) {

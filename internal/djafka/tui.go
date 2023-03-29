@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -40,6 +41,7 @@ type model struct {
 	detailsComponent DetailsComponent
 	selectionTable   Menu
 	service          *Service
+	help             HelpComponent
 }
 
 func (m *model) Init() tea.Cmd {
@@ -78,6 +80,10 @@ func (m *model) Init() tea.Cmd {
 	resultTable := buildTable(resultColumns, resultRows)
 	detailsTable := buildTable(detailColumns, detailRows)
 
+	help := buildHelp()
+
+	help.FullHelpView(defaultKeys.FullHelp())
+
 	connectionComponent := ConnectionComponent{
 		Model:  connectionTable,
 		config: config,
@@ -95,6 +101,10 @@ func (m *model) Init() tea.Cmd {
 		Model: detailsTable,
 	}
 
+	helpComponent := HelpComponent{
+		Model: help,
+	}
+
 	*m = model{
 		logger:           m.logger,
 		state:            connectionState,
@@ -105,6 +115,7 @@ func (m *model) Init() tea.Cmd {
 		detailsComponent: detailsComponent,
 		selectionTable:   menu,
 		service:          nil,
+		help:             helpComponent,
 	}
 
 	return changeConnection(config.Connections[0])
@@ -175,7 +186,10 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case detailsState:
 				m.state = connectionState
 			}
+		case "?":
+			m.help.ShowAll = !m.help.ShowAll
 		}
+
 	// Resizing
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
@@ -329,6 +343,8 @@ func (m *model) View() string {
 	resultBorderStyle := defocusTable(&m.resultComponent.Model)
 	detailsBorderStyle := defocusTable(&m.detailsComponent.Model)
 
+	helpView := m.help.View(defaultKeys)
+
 	switch m.state {
 	case connectionState:
 		connectionBorderStyle = focusTable(&m.connectionTable.Model)
@@ -346,7 +362,7 @@ func (m *model) View() string {
 	resultPane := resultBorderStyle.Render(m.resultComponent.View())
 	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 
-	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane)
+	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane, helpView)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane)
 }
@@ -415,6 +431,12 @@ func buildTable(cols []table.Column, rows []table.Row) table.Model {
 	t.SetStyles(s)
 
 	return t
+}
+
+func buildHelp() help.Model {
+	h := help.New()
+
+	return h
 }
 
 func Run() {

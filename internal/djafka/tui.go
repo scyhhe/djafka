@@ -21,7 +21,8 @@ type sessionState uint
 const (
 	connectionState sessionState = iota
 	selectionState
-	topicListState
+	resultState
+	detailsState
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -33,6 +34,7 @@ type model struct {
 	state           sessionState
 	connectionTable ConnectionComponent
 	resultTable     ResultComponent
+	detailsTable    DetailsComponent
 	selectionTable  Menu
 	service         *Service
 }
@@ -44,7 +46,7 @@ func (m *model) Init() tea.Cmd {
 	}
 
 	connectionColumns := []table.Column{
-		{Title: "Connections", Width: 30},
+		{Title: ConnectionsLabel, Width: 30},
 	}
 
 	connectionRows := []table.Row{}
@@ -53,19 +55,25 @@ func (m *model) Init() tea.Cmd {
 	}
 
 	selectionColumns := []table.Column{
-		{Title: "Menu", Width: 30},
+		{Title: MenuLabel, Width: 30},
 	}
-	selectionRows := []table.Row{{"Topics"}, {"Consumer Groups"}, {"Info"}}
+	selectionRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
 
-	topicResultColumns := []table.Column{
-		{Title: "Topics", Width: 70},
+	resultColumns := []table.Column{
+		{Title: ResultLabel, Width: 60},
 	}
 
-	topicResultRows := []table.Row{}
+	detailColumns := []table.Column{
+		{Title: DetailsLabel, Width: 60},
+	}
+
+	resultRows := []table.Row{}
+	detailRows := []table.Row{}
 
 	connectionTable := buildTable(connectionColumns, connectionRows)
 	selectionTable := buildTable(selectionColumns, selectionRows)
-	resultTable := buildTable(topicResultColumns, topicResultRows)
+	resultTable := buildTable(resultColumns, resultRows)
+	detailsTable := buildTable(detailColumns, detailRows)
 
 	connectionComponent := ConnectionComponent{
 		Model:  connectionTable,
@@ -80,7 +88,11 @@ func (m *model) Init() tea.Cmd {
 		Model: resultTable,
 	}
 
-	*m = model{m.logger, connectionState, connectionComponent, resultComponent, menu, nil}
+	detailsComponent := DetailsComponent{
+		Model: detailsTable,
+	}
+
+	*m = model{m.logger, connectionState, connectionComponent, resultComponent, detailsComponent, menu, nil}
 
 	return changeConnection(config.Connections[0])
 }
@@ -94,14 +106,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.connectionTable.Blur()
 	m.selectionTable.Blur()
 	m.resultTable.Blur()
+	m.detailsTable.Blur()
 
 	switch m.state {
 	case connectionState:
 		m.connectionTable.Focus()
 	case selectionState:
 		m.selectionTable.Focus()
-	case topicListState:
+	case resultState:
 		m.resultTable.Focus()
+	case detailsState:
+		m.detailsTable.Focus()
 	default:
 		panic("unhandled state")
 	}
@@ -110,22 +125,24 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Key presses
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
+		case ESC:
 			if m.selectionTable.Focused() {
 				m.selectionTable.Blur()
 			} else {
 				m.selectionTable.Focus()
 			}
-		case "q", "ctrl+c":
+		case QUIT, CANCEL:
 			return m, tea.Quit
-		case "tab":
+		case TAB:
 			switch m.state {
 			case connectionState:
 				m.state = selectionState
 			case selectionState:
-				m.state = topicListState
-			case topicListState:
+				m.state = resultState
+			case resultState:
 				m.state = connectionState
+			case detailsState:
+				m.state = detailsState
 			}
 		}
 	// Resizing
@@ -139,24 +156,33 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.changeConnection(Connection(msg))
 		cmds = append(cmds, cmd)
 	case TopicsSelectedMsg:
-		// TODO reset columns to match the topics structure
-		// m.resultTable.SetColumns([]table.Column{
-		// 	{Title: "Topics", Width: 50},
-		// })
+		m.resultTable.SetRows([]table.Row{})
+		m.resultTable.SetColumns([]table.Column{
+			{Title: TopicsLabel, Width: 60},
+		})
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
 	case TopicsLoadedMsg:
-		m.resultTable.SetItems(msg)
+		m.resultTable.SetTopics(msg)
 	case ConsumersLoadedMsg:
 		m.resultTable.SetConsumers(msg)
 	case ConsumersSelectedMsg:
+		m.resultTable.SetRows([]table.Row{})
 		m.resultTable.SetColumns([]table.Column{
-			{Title: "ConsumerId", Width: 50},
-			{Title: "GroupId", Width: 25},
-			{Title: "State", Width: 10},
+			{Title: ConsumerIdLabel, Width: 30},
+			{Title: GroupIdLabel, Width: 20},
+			{Title: StateLabel, Width: 10},
 		})
 		cmd := m.loadConsumers()
 		cmds = append(cmds, cmd)
+	case ConsumerSelectedMsg:
+		m.detailsTable.SetRows([]table.Row{})
+		m.detailsTable.SetColumns([]table.Column{
+			{Title: "Topic Name", Width: 30},
+			{Title: "Offset", Width: 20},
+			{Title: "Partition", Width: 10},
+		})
+		m.detailsTable.SetConsumerDetails(Consumer(msg))
 	}
 
 	m.connectionTable, cmd = m.connectionTable.Update(msg)
@@ -164,6 +190,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.selectionTable, cmd = m.selectionTable.Update(msg)
 	cmds = append(cmds, cmd)
 	m.resultTable, cmd = m.resultTable.Update(msg)
+	cmds = append(cmds, cmd)
+	m.detailsTable, cmd = m.detailsTable.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -219,22 +247,28 @@ func (m *model) View() string {
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
 	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
 	resultBorderStyle := defocusTable(&m.resultTable.Model)
+	detailsBorderStyle := defocusTable(&m.detailsTable.Model)
 
 	switch m.state {
 	case connectionState:
 		connectionBorderStyle = focusTable(&m.connectionTable.Model)
 	case selectionState:
 		selectionBorderStyle = focusTable(&m.selectionTable.Model)
-	case topicListState:
+	case resultState:
 		resultBorderStyle = focusTable(&m.resultTable.Model)
+	case detailsState:
+		detailsBorderStyle = focusTable(&m.detailsTable.Model)
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
-	rightPane := resultBorderStyle.Render(m.resultTable.View())
+	resultPane := resultBorderStyle.Render(m.resultTable.View())
+	detailsPane := detailsBorderStyle.Render(m.detailsTable.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, rightPane)
+	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane)
 }
 
 func makeFocused(s lipgloss.Style) lipgloss.Style {

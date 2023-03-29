@@ -31,9 +31,9 @@ func (m Menu) Update(msg tea.Msg) (Menu, tea.Cmd) {
 
 	_, isClientConnected := msg.(ClientConnectedMsg)
 	if hasRowChanged || isClientConnected {
-		if currentRow == "Topics" {
+		if currentRow == TopicsLabel {
 			return m, tea.Batch(cmd, selectTopics())
-		} else if currentRow == "Consumer Groups" {
+		} else if currentRow == ConsumerGroupsLabel {
 			return m, tea.Batch(cmd, selectConsumers())
 		}
 	}

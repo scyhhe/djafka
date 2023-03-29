@@ -6,3 +6,4 @@ type TopicsSelectedMsg struct{}
 type TopicsLoadedMsg []string
 type ConsumersSelectedMsg struct{}
 type ConsumersLoadedMsg []Consumer
+type ConsumerSelectedMsg Consumer

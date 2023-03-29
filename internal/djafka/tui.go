@@ -89,7 +89,7 @@ func (m *model) Init() tea.Cmd {
 
 	*m = model{
 		logger:          m.logger,
-		state:           addTopicState,
+		state:           connectionState,
 		previousState:   connectionState,
 		errorComponent:  ErrorComponent{},
 		connectionTable: connectionComponent,
@@ -162,6 +162,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case topicListState:
 				m.state = connectionState
 			}
+		case "ctrl+t":
+			m.state = addTopicState
 		}
 	// Resizing
 	case tea.WindowSizeMsg:
@@ -217,7 +219,7 @@ func (m *model) changeConnection(conn Connection) tea.Cmd {
 			m.service.Close()
 		}
 
-		service, err := NewService(conn)
+		service, err := NewService(conn, m.logger)
 		if err != nil {
 			return sendError(fmt.Errorf("Failed to re-create service: %w", err))
 		}

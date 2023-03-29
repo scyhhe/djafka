@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -60,10 +61,11 @@ type ConsumerTopicPartition struct {
 type Service struct {
 	client   *kafka.AdminClient
 	consumer *kafka.Consumer
+	logger   *log.Logger
 	// producer *kafka.Producer
 }
 
-func NewService(conn Connection) (*Service, error) {
+func NewService(conn Connection, logger *log.Logger) (*Service, error) {
 	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
 	})
@@ -77,7 +79,7 @@ func NewService(conn Connection) (*Service, error) {
 	// 	"bootstrap.servers": "localhost",
 	// })
 
-	return &Service{client, consumer}, err
+	return &Service{client, consumer, logger}, err
 }
 
 func (s *Service) Close() {
@@ -100,7 +102,6 @@ func (s *Service) ListTopics() ([]string, error) {
 
 func (s *Service) CreateTopic(name string, partitions int, replicationFactor int) (string, error) {
 	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: partitions, ReplicationFactor: replicationFactor}
-	fmt.Println("spec", topicSpec)
 	res, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
 
 	if err != nil {

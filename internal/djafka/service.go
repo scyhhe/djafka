@@ -98,14 +98,19 @@ func (s *Service) ListTopics() ([]string, error) {
 	return topics, nil
 }
 
-func (s *Service) CreateTopic(name string) (string, error) {
-	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: 1, ReplicationFactor: 1, Config: map[string]string{}}
-	_, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
+func (s *Service) CreateTopic(name string, partitions int, replicationFactor int) (string, error) {
+	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: partitions, ReplicationFactor: replicationFactor}
+	fmt.Println("spec", topicSpec)
+	res, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
 
 	if err != nil {
 		return err.Error(), fmt.Errorf("Failed to create new topic: %w", err)
 	}
-
+	for _, r := range res {
+		if r.Error.Code() != kafka.ErrNoError {
+			return r.Error.String(), fmt.Errorf("Failed to create new topic: %w", r.Error)
+		}
+	}
 	return topicSpec.Topic, nil
 
 }

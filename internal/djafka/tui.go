@@ -91,7 +91,6 @@ func (m *model) Init() tea.Cmd {
 		Model: resultTable,
 	}
 
-
 	detailsComponent := DetailsComponent{
 		Model: detailsTable,
 	}
@@ -102,8 +101,8 @@ func (m *model) Init() tea.Cmd {
 		previousState:   connectionState,
 		errorComponent:  ErrorComponent{},
 		connectionTable: connectionComponent,
-		resultComponent: resultComponent,
-    detailsComponent: detailsComponent,
+		resultTable:     resultComponent,
+		detailsTable:    detailsComponent,
 		selectionTable:  menu,
 		service:         nil,
 	}
@@ -279,6 +278,7 @@ func (m *model) loadConsumers() tea.Cmd {
 		}
 
 		return ConsumersLoadedMsg(consumers)
+	}
 }
 
 func sendError(err error) tea.Cmd {

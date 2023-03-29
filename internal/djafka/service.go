@@ -113,7 +113,7 @@ func (s *Service) CreateTopic(name string) (string, error) {
 func (s *Service) ListConsumerGroups() ([]string, error) {
 	consumerGroups, err := s.client.ListConsumerGroups(context.Background())
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch meta data: %w", err)
+		return nil, fmt.Errorf("Failed to list consumer groups: %w", err)
 	}
 
 	groupIds := []string{}
@@ -127,7 +127,7 @@ func (s *Service) ListConsumerGroups() ([]string, error) {
 func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 	consumerGroups, err := s.client.DescribeConsumerGroups(context.Background(), groupIds)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch meta data: %w", err)
+		return nil, fmt.Errorf("Failed to describe consumer groups: %w", err)
 	}
 
 	consumers := []Consumer{}

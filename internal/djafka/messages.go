@@ -10,4 +10,3 @@ type ConsumersLoadedMsg []Consumer
 type ConsumerSelectedMsg Consumer
 type ErrorMsg error
 type ResetMsg struct{}
-

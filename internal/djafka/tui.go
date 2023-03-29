@@ -171,9 +171,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case selectionState:
 				m.state = resultState
 			case resultState:
-				m.state = connectionState
-			case detailsState:
 				m.state = detailsState
+			case detailsState:
+				m.state = connectionState
 			}
 		}
 	// Resizing
@@ -189,12 +189,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case TopicsSelectedMsg:
 		m.resultComponent.SetRows([]table.Row{})
 		m.resultComponent.SetColumns([]table.Column{
-			{Title: TopicsLabel, Width: 60},
+			{Title: TopicsLabel, Width: 30},
+			{Title: "# of Partitions", Width: 30},
 		})
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
 	case TopicsLoadedMsg:
 		m.resultComponent.SetTopics(msg)
+	case TopicSelectedMsg:
+		m.detailsComponent.SetRows([]table.Row{})
+		m.detailsComponent.SetColumns([]table.Column{
+			{Title: "Key", Width: 30},
+			{Title: "Value", Width: 30},
+		})
+		cmd := m.loadTopicSettings(msg.Name)
+		cmds = append(cmds, cmd)
+	case TopicSettingsLoadedMsg:
+		m.detailsComponent.SetTopicDetails(TopicConfig(msg))
 	case ConsumersLoadedMsg:
 		m.resultComponent.SetConsumers(msg)
 	case ConsumersSelectedMsg:
@@ -267,6 +278,17 @@ func (m *model) loadTopics() tea.Cmd {
 		}
 
 		return TopicsLoadedMsg(topics)
+	}
+}
+
+func (m *model) loadTopicSettings(name string) tea.Cmd {
+	return func() tea.Msg {
+		config, err := m.service.GetTopicConfig(name)
+		if err != nil {
+			return ErrorMsg(err)
+		}
+
+		return TopicSettingsLoadedMsg(config)
 	}
 }
 

@@ -10,6 +10,12 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
 
+type Service struct {
+	client   *kafka.AdminClient
+	consumer *kafka.Consumer
+	// producer *kafka.Producer
+}
+
 type Connection struct {
 	Name            string `json:"name"`
 	BootstrapServer string `json:"bootstrapServer"`
@@ -57,10 +63,14 @@ type ConsumerTopicPartition struct {
 	Partition int32
 }
 
-type Service struct {
-	client   *kafka.AdminClient
-	consumer *kafka.Consumer
-	// producer *kafka.Producer
+type Topic struct {
+	Name           string
+	PartitionCount int
+}
+
+type TopicConfig struct {
+	Name     string
+	Settings map[string]string
 }
 
 func NewService(conn Connection) (*Service, error) {
@@ -84,30 +94,47 @@ func (s *Service) Close() {
 	s.client.Close()
 }
 
-func (s *Service) ListTopics() ([]string, error) {
+func (s *Service) ListTopics() ([]Topic, error) {
 	metaData, err := s.client.GetMetadata(nil, true, 5000)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to fetch meta data: %w", err)
 	}
 
-	topics := []string{}
-	for key := range metaData.Topics {
-		topics = append(topics, key)
+	topics := []Topic{}
+	for _, topic := range metaData.Topics {
+		topics = append(topics, Topic{topic.Topic, len(topic.Partitions)})
 	}
 
 	return topics, nil
 }
 
-func (s *Service) CreateTopic(name string) (string, error) {
-	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: 1, ReplicationFactor: 1, Config: map[string]string{}}
+func (s *Service) CreateTopic(name string, numPartitions int) (Topic, error) {
+	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: numPartitions, ReplicationFactor: 1, Config: map[string]string{}}
 	_, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
 
 	if err != nil {
-		return err.Error(), fmt.Errorf("Failed to create new topic: %w", err)
+		return Topic{}, fmt.Errorf("Failed to create new topic: %w", err)
 	}
 
-	return topicSpec.Topic, nil
+	return Topic{topicSpec.Topic, numPartitions}, nil
 
+}
+
+func (s *Service) GetTopicConfig(name string) (TopicConfig, error) {
+	cfg, err := s.client.DescribeConfigs(context.Background(), []kafka.ConfigResource{{Type: kafka.ResourceTopic, Name: name, Config: []kafka.ConfigEntry{}}})
+
+	if err != nil {
+		return TopicConfig{}, fmt.Errorf("Failed to create new topic: %w", err)
+	}
+
+	settings := map[string]string{}
+	configEntry := cfg[0]
+
+	for key, value := range configEntry.Config {
+		settings[key] = value.Value
+	}
+
+	return TopicConfig{configEntry.Name, settings}, nil
 }
 
 func (s *Service) ListConsumerGroups() ([]string, error) {
@@ -205,7 +232,6 @@ func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("GetTopicMetadata.getTopicMetadataResult", result)
 	return result.Topics[topic], nil
 }
 

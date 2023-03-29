@@ -22,6 +22,7 @@ const (
 	connectionState sessionState = iota
 	selectionState
 	topicListState
+	errorState
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -31,6 +32,8 @@ var baseStyle = lipgloss.NewStyle().
 type model struct {
 	logger          *log.Logger
 	state           sessionState
+	previousState   sessionState
+	errorComponent  ErrorComponent
 	connectionTable ConnectionComponent
 	resultComponent ResultComponent
 	selectionTable  Menu
@@ -80,7 +83,16 @@ func (m *model) Init() tea.Cmd {
 		Model: resultTable,
 	}
 
-	*m = model{m.logger, connectionState, connectionComponent, resultComponent, menu, nil}
+	*m = model{
+		logger:          m.logger,
+		state:           connectionState,
+		previousState:   connectionState,
+		errorComponent:  ErrorComponent{},
+		connectionTable: connectionComponent,
+		resultComponent: resultComponent,
+		selectionTable:  menu,
+		service:         nil,
+	}
 
 	return changeConnection(config.Connections[0])
 }
@@ -90,6 +102,19 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
+
+	if m.state == errorState {
+		m.errorComponent, cmd = m.errorComponent.Update(msg)
+		cmds = append(cmds, cmd)
+
+		_, isKeyMsg := msg.(tea.KeyMsg)
+		if isKeyMsg {
+			m.restoreState()
+			cmds = append(cmds, reset())
+		}
+
+		return m, tea.Batch(cmds...)
+	}
 
 	m.connectionTable.Blur()
 	m.selectionTable.Blur()
@@ -143,8 +168,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	case TopicsLoadedMsg:
 		m.resultComponent.SetItems(msg)
+	case ErrorMsg:
+		m.triggerErrorState()
 	}
 
+	m.errorComponent, cmd = m.errorComponent.Update(msg)
+	cmds = append(cmds, cmd)
 	m.connectionTable, cmd = m.connectionTable.Update(msg)
 	cmds = append(cmds, cmd)
 	m.selectionTable, cmd = m.selectionTable.Update(msg)
@@ -155,6 +184,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+func (m *model) triggerErrorState() {
+	m.previousState = m.state
+	m.state = errorState
+}
+
+func (m *model) restoreState() {
+	m.state = m.previousState
+}
+
 func (m *model) changeConnection(conn Connection) tea.Cmd {
 	return func() tea.Msg {
 		if m.service != nil {
@@ -163,7 +201,7 @@ func (m *model) changeConnection(conn Connection) tea.Cmd {
 
 		service, err := NewService(conn)
 		if err != nil {
-			panic(fmt.Errorf("Failed to re-create service: %w", err))
+			return sendError(fmt.Errorf("Failed to re-create service: %w", err))
 		}
 
 		m.service = service
@@ -176,15 +214,30 @@ func (m *model) loadTopics() tea.Cmd {
 	return func() tea.Msg {
 		topics, err := m.service.ListTopics()
 		if err != nil {
-			// TODO: Do properly :')
-			panic(err)
+			return sendError(err)
 		}
 
 		return TopicsLoadedMsg(topics)
 	}
 }
 
+func sendError(err error) tea.Cmd {
+	return func() tea.Msg {
+		return ErrorMsg(err)
+	}
+}
+
+func reset() tea.Cmd {
+	return func() tea.Msg {
+		return ResetMsg{}
+	}
+}
+
 func (m *model) View() string {
+	if m.state == errorState {
+		return m.errorComponent.View()
+	}
+
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
 	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
 	resultBorderStyle := defocusTable(&m.resultComponent.Model)

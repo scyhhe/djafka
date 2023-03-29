@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	// service, err := djafka.NewService()
+	// service, err := djafka.NewService(djafka.Connection{Name: "test", BootstrapServer: "localhost"})
 	// if err != nil {
 	// 	panic(err)
 	// }
@@ -46,7 +46,7 @@ func main() {
 
 	// messageChan := make(chan string)
 
-	// err = service.FetchMessages(topicName, messageChan)
+	// err = service.FetchMessages("test-topic-1", messageChan)
 
 	// allMessages := []string{}
 	// for msg := range messageChan {

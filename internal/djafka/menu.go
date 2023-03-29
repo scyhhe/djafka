@@ -11,6 +11,12 @@ func selectTopics() tea.Cmd {
 	}
 }
 
+func selectConsumers() tea.Cmd {
+	return func() tea.Msg {
+		return ConsumersSelectedMsg{}
+	}
+}
+
 type Menu struct {
 	table.Model
 }
@@ -25,8 +31,10 @@ func (m Menu) Update(msg tea.Msg) (Menu, tea.Cmd) {
 
 	_, isClientConnected := msg.(ClientConnectedMsg)
 	if hasRowChanged || isClientConnected {
-		if currentRow == "Topics" {
+		if currentRow == TopicsLabel {
 			return m, tea.Batch(cmd, selectTopics())
+		} else if currentRow == ConsumerGroupsLabel {
+			return m, tea.Batch(cmd, selectConsumers())
 		}
 	}
 

@@ -23,6 +23,7 @@ const (
 	selectionState
 	topicListState
 	errorState
+	addTopicState
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -36,6 +37,7 @@ type model struct {
 	errorComponent  ErrorComponent
 	connectionTable ConnectionComponent
 	resultComponent ResultComponent
+	addTopicPrompt  AddTopicPrompt
 	selectionTable  Menu
 	service         *Service
 }
@@ -83,13 +85,16 @@ func (m *model) Init() tea.Cmd {
 		Model: resultTable,
 	}
 
+	addTopicPrompt := InitialAddTopicPrompt(m.logger)
+
 	*m = model{
 		logger:          m.logger,
-		state:           connectionState,
+		state:           addTopicState,
 		previousState:   connectionState,
 		errorComponent:  ErrorComponent{},
 		connectionTable: connectionComponent,
 		resultComponent: resultComponent,
+		addTopicPrompt:  addTopicPrompt,
 		selectionTable:  menu,
 		service:         nil,
 	}
@@ -98,10 +103,10 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.logger.Printf("Received tea.Msg: %T\n", msg)
-
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
+
+	_, isPromptResult := msg.(AddTopicSubmitMsg)
 
 	if m.state == errorState {
 		m.errorComponent, cmd = m.errorComponent.Update(msg)
@@ -114,8 +119,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
+	} else if m.state == addTopicState && !isPromptResult {
+		m.addTopicPrompt, cmd = m.addTopicPrompt.Update(msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
 	}
-
 	m.connectionTable.Blur()
 	m.selectionTable.Blur()
 	m.resultComponent.Blur()
@@ -127,6 +135,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectionTable.Focus()
 	case topicListState:
 		m.resultComponent.Focus()
+	case addTopicState:
+
 	default:
 		panic("unhandled state")
 	}
@@ -170,6 +180,14 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resultComponent.SetItems(msg)
 	case ErrorMsg:
 		m.triggerErrorState()
+	case AddTopicSubmitMsg:
+		m.logger.Println("Received AddTopicSubmitMsg with values: ", msg.name, msg.paritions, msg.replicationFactor)
+		_, err := m.service.CreateTopic(msg.name, msg.paritions, msg.replicationFactor)
+		if err != nil {
+			m.logger.Println("CreateTopic error", err)
+		}
+
+		m.restoreState()
 	}
 
 	m.errorComponent, cmd = m.errorComponent.Update(msg)
@@ -236,6 +254,8 @@ func reset() tea.Cmd {
 func (m *model) View() string {
 	if m.state == errorState {
 		return m.errorComponent.View()
+	} else if m.state == addTopicState {
+		return m.addTopicPrompt.View()
 	}
 
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)

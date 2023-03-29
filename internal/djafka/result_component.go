@@ -24,3 +24,12 @@ func (c *ResultComponent) SetItems(items []string) {
 	}
 	c.Model.SetRows(rows)
 }
+
+func (c *ResultComponent) SetConsumers(items []Consumer) {
+	rows := []table.Row{}
+	for _, item := range items {
+		// TODO add current # of messages
+		rows = append(rows, table.Row{item.ConsumerId, item.GroupId, item.State})
+	}
+	c.Model.SetRows(rows)
+}

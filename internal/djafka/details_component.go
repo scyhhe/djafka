@@ -25,3 +25,11 @@ func (c *DetailsComponent) SetConsumerDetails(item Consumer) {
 	}
 	c.Model.SetRows(rows)
 }
+
+func (c *DetailsComponent) SetTopicDetails(item TopicConfig) {
+	rows := []table.Row{}
+	for key, value := range item.Settings {
+		rows = append(rows, table.Row{key, value})
+	}
+	c.Model.SetRows(rows)
+}

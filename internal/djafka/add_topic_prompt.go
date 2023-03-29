@@ -14,7 +14,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+func validateTopic(s string) error {
+	if len(s) > 64 {
+		return fmt.Errorf("topic name is too long")
+	}
+	return nil
+}
+
+func validateInt(s string) error {
+	_, err := strconv.ParseInt(s, 10, 64)
+	return err
+}
+
 var (
+	inputStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF06B7"))
+	continueStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("#767676"))
 	focusedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	blurredStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
 	cursorStyle         = focusedStyle.Copy()
@@ -40,6 +54,7 @@ func InitialAddTopicPrompt(log *log.Logger) AddTopicPrompt {
 	}
 
 	var t textinput.Model
+
 	for i := range m.inputs {
 		t = textinput.New()
 		t.CursorStyle = cursorStyle
@@ -47,15 +62,18 @@ func InitialAddTopicPrompt(log *log.Logger) AddTopicPrompt {
 
 		switch i {
 		case 0:
-			t.Placeholder = "Topic Name"
 			t.Focus()
+			t.Placeholder = ""
 			t.PromptStyle = focusedStyle
 			t.TextStyle = focusedStyle
 			t.CharLimit = 64
+			t.Validate = validateTopic
 		case 1:
-			t.Placeholder = "Partitions"
+			t.Placeholder = ""
+			t.Validate = validateInt
 		case 2:
-			t.Placeholder = "Max Replication"
+			t.Placeholder = ""
+			t.Validate = validateInt
 		}
 
 		m.inputs[i] = t
@@ -96,11 +114,11 @@ func (m AddTopicPrompt) Update(msg tea.Msg) (AddTopicPrompt, tea.Cmd) {
 			if s == "enter" {
 				parsed1, err := strconv.ParseInt(m.inputs[1].Value(), 10, 64)
 				if err != nil {
-					panic(err)
+					return m, func() tea.Msg { return ErrorMsg(err) } //panic is annoying af
 				}
 				parsed2, err := strconv.ParseInt(m.inputs[2].Value(), 10, 64)
 				if err != nil {
-					panic(err)
+					return m, func() tea.Msg { return ErrorMsg(err) }
 				}
 				res := AddTopicSubmitMsg{
 					m.inputs[0].Value(),
@@ -164,13 +182,6 @@ func (m *AddTopicPrompt) updateInputs(msg tea.Msg) tea.Cmd {
 func (m AddTopicPrompt) View() string {
 	var b strings.Builder
 
-	for i := range m.inputs {
-		b.WriteString(m.inputs[i].View())
-		if i < len(m.inputs)-1 {
-			b.WriteRune('\n')
-		}
-	}
-
 	button := &blurredButton
 	if m.focusIndex == len(m.inputs) {
 		button = &focusedButton
@@ -181,5 +192,24 @@ func (m AddTopicPrompt) View() string {
 	b.WriteString(cursorModeHelpStyle.Render(m.cursorMode.String()))
 	b.WriteString(helpStyle.Render(" (ctrl+r to change style)"))
 
-	return b.String()
+	return fmt.Sprintf(
+		`
+	 %s
+	 %s
+	 %s
+	 %s
+	 %s
+	 %s
+	 %s %s
+	`,
+		inputStyle.Width(30).Render("Topic Name"),
+		m.inputs[0].View(),
+		inputStyle.Width(12).Render("Partitions"),
+		m.inputs[1].View(),
+		inputStyle.Width(20).Render("Max Replication"),
+		m.inputs[2].View(),
+		"\t",
+		b.String(),
+	) + "\n"
+
 }

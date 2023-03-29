@@ -211,6 +211,8 @@ func (m *model) triggerErrorState() {
 
 func (m *model) restoreState() {
 	m.state = m.previousState
+
+	m.addTopicPrompt = InitialAddTopicPrompt(m.logger) //reset prompt
 }
 
 func (m *model) changeConnection(conn Connection) tea.Cmd {

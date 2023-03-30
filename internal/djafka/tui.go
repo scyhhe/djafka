@@ -107,6 +107,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	_, isPromptResult := msg.(AddTopicSubmitMsg)
+	_, isAddTopicCancel := msg.(AddTopicCancel)
 
 	if m.state == errorState {
 		m.errorComponent, cmd = m.errorComponent.Update(msg)
@@ -119,7 +120,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
-	} else if m.state == addTopicState && !isPromptResult {
+	} else if m.state == addTopicState && !isPromptResult && !isAddTopicCancel {
 		m.addTopicPrompt, cmd = m.addTopicPrompt.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
@@ -182,6 +183,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resultComponent.SetItems(msg)
 	case ErrorMsg:
 		m.triggerErrorState()
+	case AddTopicCancel:
+		m.logger.Println("Received AddTopicCancel")
+		m.restoreState()
 	case AddTopicSubmitMsg:
 		m.logger.Println("Received AddTopicSubmitMsg with values: ", msg.name, msg.paritions, msg.replicationFactor)
 		_, err := m.service.CreateTopic(msg.name, msg.paritions, msg.replicationFactor)

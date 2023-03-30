@@ -91,19 +91,9 @@ func (m AddTopicPrompt) Update(msg tea.Msg) (AddTopicPrompt, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			return m, tea.Batch()
-
-		// Change cursor mode
-		case "ctrl+r":
-			m.cursorMode++
-			if m.cursorMode > textinput.CursorHide {
-				m.cursorMode = textinput.CursorBlink
-			}
-			cmds := make([]tea.Cmd, len(m.inputs))
-			for i := range m.inputs {
-				cmds[i] = m.inputs[i].SetCursorMode(m.cursorMode)
-			}
-			return m, tea.Batch(cmds...)
+			res := AddTopicCancel{}
+			m.logger.Println("Submiting AddTopicCancel", res)
+			return m, func() tea.Msg { return res }
 
 		// Set focus to next input
 		case "tab", "shift+tab", "enter", "up", "down":
@@ -186,11 +176,7 @@ func (m AddTopicPrompt) View() string {
 	if m.focusIndex == len(m.inputs) {
 		button = &focusedButton
 	}
-	fmt.Fprintf(&b, "\n\n%s\n\n", *button)
-
-	b.WriteString(helpStyle.Render("cursor mode is "))
-	b.WriteString(cursorModeHelpStyle.Render(m.cursorMode.String()))
-	b.WriteString(helpStyle.Render(" (ctrl+r to change style)"))
+	fmt.Fprintf(&b, "\n\t%s\n\n", *button)
 
 	return fmt.Sprintf(
 		`
@@ -208,7 +194,7 @@ func (m AddTopicPrompt) View() string {
 		m.inputs[1].View(),
 		inputStyle.Width(20).Render("Max Replication"),
 		m.inputs[2].View(),
-		"\t",
+		"",
 		b.String(),
 	) + "\n"
 

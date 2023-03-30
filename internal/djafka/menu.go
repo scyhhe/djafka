@@ -17,6 +17,12 @@ func selectConsumers() tea.Cmd {
 	}
 }
 
+func selectInfo() tea.Cmd {
+	return func() tea.Msg {
+		return InfoSelectedMsg{}
+	}
+}
+
 type Menu struct {
 	table.Model
 }
@@ -35,8 +41,14 @@ func (m Menu) Update(msg tea.Msg) (Menu, tea.Cmd) {
 			return m, tea.Batch(cmd, selectTopics())
 		} else if currentRow == ConsumerGroupsLabel {
 			return m, tea.Batch(cmd, selectConsumers())
+		} else if currentRow == InfoLabel {
+			return m, tea.Batch(cmd, selectInfo())
 		}
 	}
 
 	return m, cmd
+}
+
+func (m *Menu) IsInfoSelected() bool {
+	return m.SelectedRow()[0] == InfoLabel
 }

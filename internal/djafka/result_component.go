@@ -69,6 +69,7 @@ func (c *ResultComponent) SetTopics(items []Topic) {
 	for _, item := range items {
 		rows = append(rows, table.Row{item.Name, strconv.Itoa(item.PartitionCount)})
 	}
+
 	c.Model.SetRows(rows)
 	c.Model.SetCursor(0)
 }

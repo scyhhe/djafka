@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -77,17 +78,19 @@ func NewService(conn Connection) (*Service, error) {
 	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
 	})
+	if err != nil {
+		return nil, fmt.Errorf("Failed to initialise kafka admin client: %w", err)
+	}
 
 	consumer, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
 		"group.id":          "testis",
 	})
+	if err != nil {
+		return nil, fmt.Errorf("Failed to initialise kafka consumer: %w", err)
+	}
 
-	// producer, err := kafka.NewProducer(&kafka.ConfigMap{
-	// 	"bootstrap.servers": "localhost",
-	// })
-
-	return &Service{client, consumer}, err
+	return &Service{client, consumer}, nil
 }
 
 func (s *Service) Close() {
@@ -105,15 +108,18 @@ func (s *Service) ListTopics() ([]Topic, error) {
 		topics = append(topics, Topic{topic.Topic, len(topic.Partitions)})
 	}
 
+	sort.Slice(topics, func(i, j int) bool {
+		return topics[i].Name < topics[j].Name
+	})
+
 	return topics, nil
 }
 
 func (s *Service) CreateTopic(name string, numPartitions int) (Topic, error) {
 	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: numPartitions, ReplicationFactor: 1, Config: map[string]string{}}
 	_, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
-
 	if err != nil {
-		return Topic{}, fmt.Errorf("Failed to create new topic: %w", err)
+		return Topic{}, fmt.Errorf("Failed to create new topic '%s': %w", name, err)
 	}
 
 	return Topic{topicSpec.Topic, numPartitions}, nil
@@ -124,7 +130,7 @@ func (s *Service) GetTopicConfig(name string) (TopicConfig, error) {
 	cfg, err := s.client.DescribeConfigs(context.Background(), []kafka.ConfigResource{{Type: kafka.ResourceTopic, Name: name, Config: []kafka.ConfigEntry{}}})
 
 	if err != nil {
-		return TopicConfig{}, fmt.Errorf("Failed to create new topic: %w", err)
+		return TopicConfig{}, fmt.Errorf("Failed to config from topic '%s': %w", name, err)
 	}
 
 	settings := map[string]string{}
@@ -147,6 +153,8 @@ func (s *Service) ListConsumerGroups() ([]string, error) {
 	for _, group := range consumerGroups.Valid {
 		groupIds = append(groupIds, group.GroupID)
 	}
+
+	sort.StringSlice(groupIds).Sort()
 
 	return groupIds, nil
 }
@@ -180,6 +188,10 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 		consumers = append(consumers, consumer)
 	}
 
+	sort.Slice(consumers, func(i, j int) bool {
+		return consumers[i].ConsumerId < consumers[j].ConsumerId
+	})
+
 	return consumers, nil
 }
 
@@ -212,7 +224,6 @@ func (s *Service) FetchMessages(topic string, channel chan string) error {
 		default:
 		}
 		msg, err := s.consumer.ReadMessage(time.Second)
-
 		if err == nil {
 			channel <- msg.String()
 			fmt.Printf("Message on %s: %s\n", msg.TopicPartition, string(msg.Value))
@@ -230,7 +241,7 @@ func (s *Service) FetchMessages(topic string, channel chan string) error {
 func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {
 	result, err := s.client.GetMetadata(&topic, false, 5000)
 	if err != nil {
-		panic(err)
+		return kafka.TopicMetadata{}, fmt.Errorf("Failed to get metadata of topic '%s': %w", topic, err)
 	}
 	return result.Topics[topic], nil
 }
@@ -238,7 +249,7 @@ func (s *Service) GetTopicMetadata(topic string) (kafka.TopicMetadata, error) {
 func (s *Service) ResetConsumerOffsets(group string, topic string, offset int64) error {
 	topicMetadata, err := s.GetTopicMetadata(topic)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	partitionArg := []kafka.TopicPartition{}
@@ -257,13 +268,14 @@ func (s *Service) ResetConsumerOffsets(group string, topic string, offset int64)
 		},
 	})
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("Failed to alter consumer group offset: %w", err)
 	}
 
 	for _, res := range result.ConsumerGroupsTopicPartitions {
-		for _, resPartion := range res.Partitions {
-			if resPartion.Error != nil {
-				panic(resPartion.Error)
+		for _, resPartition := range res.Partitions {
+			if resPartition.Error != nil {
+				return fmt.Errorf("Failed to alter consumer group offset for partition '%d': %w",
+					resPartition.Partition, err)
 			}
 		}
 	}

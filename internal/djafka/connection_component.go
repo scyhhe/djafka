@@ -26,7 +26,7 @@ func (c ConnectionComponent) Update(msg tea.Msg) (ConnectionComponent, tea.Cmd) 
 	if prevRow != currentRow || isReset {
 		conn, err := c.config.FindConnection(currentRow)
 		if err != nil {
-			return c, sendError(err)
+			return c, sendErrorCmd(err)
 		}
 
 		return c, tea.Batch(cmd, changeConnection(conn))

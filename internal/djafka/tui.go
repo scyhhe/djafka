@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -21,7 +22,8 @@ type sessionState uint
 const (
 	connectionState sessionState = iota
 	selectionState
-	topicListState
+	resultState
+	detailsState
 	errorState
 	addTopicState
 )
@@ -31,15 +33,18 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type model struct {
-	logger          *log.Logger
-	state           sessionState
-	previousState   sessionState
-	errorComponent  ErrorComponent
-	connectionTable ConnectionComponent
-	resultComponent ResultComponent
-	addTopicPrompt  AddTopicPrompt
-	selectionTable  Menu
-	service         *Service
+	logger           *log.Logger
+	state            sessionState
+	previousState    sessionState
+	errorComponent   ErrorComponent
+	connectionTable  ConnectionComponent
+	resultComponent  ResultComponent
+	detailsComponent DetailsComponent
+	selectionTable   Menu
+	service          *Service
+	help             HelpComponent
+	infoComponent    InfoComponent
+	addTopicPrompt   AddTopicPrompt
 }
 
 func (m *model) Init() tea.Cmd {
@@ -49,7 +54,7 @@ func (m *model) Init() tea.Cmd {
 	}
 
 	connectionColumns := []table.Column{
-		{Title: "Connections", Width: 30},
+		{Title: ConnectionsLabel, Width: 30},
 	}
 
 	connectionRows := []table.Row{}
@@ -58,19 +63,29 @@ func (m *model) Init() tea.Cmd {
 	}
 
 	selectionColumns := []table.Column{
-		{Title: "Menu", Width: 30},
+		{Title: MenuLabel, Width: 30},
 	}
-	selectionRows := []table.Row{{"Topics"}, {"Consumer Groups"}, {"Info"}}
+	selectionRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
 
-	topicResultColumns := []table.Column{
-		{Title: "Topics", Width: 70},
+	resultColumns := []table.Column{
+		{Title: ResultLabel, Width: 60},
 	}
 
-	topicResultRows := []table.Row{}
+	detailColumns := []table.Column{
+		{Title: DetailsLabel, Width: 60},
+	}
+
+	resultRows := []table.Row{}
+	detailRows := []table.Row{}
 
 	connectionTable := buildTable(connectionColumns, connectionRows)
 	selectionTable := buildTable(selectionColumns, selectionRows)
-	resultTable := buildTable(topicResultColumns, topicResultRows)
+	resultTable := buildTable(resultColumns, resultRows)
+	detailsTable := buildTable(detailColumns, detailRows)
+
+	help := buildHelp()
+
+	help.FullHelpView(defaultKeys.FullHelp())
 
 	connectionComponent := ConnectionComponent{
 		Model:  connectionTable,
@@ -87,16 +102,32 @@ func (m *model) Init() tea.Cmd {
 
 	addTopicPrompt := InitialAddTopicPrompt(m.logger)
 
+	detailsComponent := DetailsComponent{
+		Model: detailsTable,
+	}
+
+	helpComponent := HelpComponent{
+		Model: help,
+	}
+
+	infoComponent, err := NewInfoComponent()
+	if err != nil {
+		panic(err)
+	}
+
 	*m = model{
-		logger:          m.logger,
-		state:           connectionState,
-		previousState:   connectionState,
-		errorComponent:  ErrorComponent{},
-		connectionTable: connectionComponent,
-		resultComponent: resultComponent,
-		addTopicPrompt:  addTopicPrompt,
-		selectionTable:  menu,
-		service:         nil,
+		logger:           m.logger,
+		state:            connectionState,
+		previousState:    connectionState,
+		errorComponent:   ErrorComponent{},
+		connectionTable:  connectionComponent,
+		resultComponent:  resultComponent,
+		detailsComponent: detailsComponent,
+		selectionTable:   menu,
+		service:          nil,
+		help:             helpComponent,
+		infoComponent:    infoComponent,
+		addTopicPrompt:   addTopicPrompt,
 	}
 
 	return changeConnection(config.Connections[0])
@@ -113,10 +144,15 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.errorComponent, cmd = m.errorComponent.Update(msg)
 		cmds = append(cmds, cmd)
 
-		_, isKeyMsg := msg.(tea.KeyMsg)
+		keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 		if isKeyMsg {
-			m.restoreState()
-			cmds = append(cmds, reset())
+			switch keyMsg.String() {
+			case QUIT, CANCEL:
+				return m, tea.Quit
+			default:
+				m.restoreState()
+				cmds = append(cmds, reset())
+			}
 		}
 
 		return m, tea.Batch(cmds...)
@@ -128,16 +164,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	m.connectionTable.Blur()
 	m.selectionTable.Blur()
 	m.resultComponent.Blur()
+	m.detailsComponent.Blur()
 
 	switch m.state {
 	case connectionState:
 		m.connectionTable.Focus()
 	case selectionState:
 		m.selectionTable.Focus()
-	case topicListState:
+	case resultState:
 		m.resultComponent.Focus()
 	case addTopicState:
-
+	case detailsState:
+		m.detailsComponent.Focus()
 	default:
 		panic("unhandled state")
 	}
@@ -146,41 +184,81 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Key presses
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "esc":
+		case ESC:
 			if m.selectionTable.Focused() {
 				m.selectionTable.Blur()
 			} else {
 				m.selectionTable.Focus()
 			}
-		case "q", "ctrl+c":
+		case QUIT, CANCEL:
 			return m, tea.Quit
-		case "tab":
+		case TAB:
 			switch m.state {
 			case connectionState:
 				m.state = selectionState
 			case selectionState:
-				m.state = topicListState
-			case topicListState:
+				m.state = resultState
+			case resultState:
+				m.state = detailsState
+			case detailsState:
 				m.state = connectionState
 			}
 		case "ctrl+t":
 			m.state = addTopicState
+		case "?":
+			m.help.ShowAll = !m.help.ShowAll
 		}
+
 	// Resizing
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
 		m.selectionTable.SetHeight((msg.Height / 2) - 4)
 		m.resultComponent.SetHeight((msg.Height / 2) - 4)
+		m.detailsComponent.SetHeight((msg.Height / 2) - 4)
 
 	// Custom messages
 	case ConnectionChangedMsg:
 		cmd := m.changeConnection(Connection(msg))
 		cmds = append(cmds, cmd)
 	case TopicsSelectedMsg:
+		m.resultComponent.SetRows([]table.Row{})
+		m.resultComponent.SetColumns([]table.Column{
+			{Title: TopicsLabel, Width: 30},
+			{Title: "# of Partitions", Width: 30},
+		})
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
 	case TopicsLoadedMsg:
-		m.resultComponent.SetItems(msg)
+		m.resultComponent.SetTopics(msg)
+	case TopicSelectedMsg:
+		m.detailsComponent.SetRows([]table.Row{})
+		m.detailsComponent.SetColumns([]table.Column{
+			{Title: "Key", Width: 30},
+			{Title: "Value", Width: 30},
+		})
+		cmd := m.loadTopicSettings(msg.Name)
+		cmds = append(cmds, cmd)
+	case TopicSettingsLoadedMsg:
+		m.detailsComponent.SetTopicDetails(TopicConfig(msg))
+	case ConsumersLoadedMsg:
+		m.resultComponent.SetConsumers(msg)
+	case ConsumersSelectedMsg:
+		m.resultComponent.SetRows([]table.Row{})
+		m.resultComponent.SetColumns([]table.Column{
+			{Title: ConsumerIdLabel, Width: 30},
+			{Title: GroupIdLabel, Width: 20},
+			{Title: StateLabel, Width: 10},
+		})
+		cmd := m.loadConsumers()
+		cmds = append(cmds, cmd)
+	case ConsumerSelectedMsg:
+		m.detailsComponent.SetRows([]table.Row{})
+		m.detailsComponent.SetColumns([]table.Column{
+			{Title: "Topic Name", Width: 30},
+			{Title: "Offset", Width: 20},
+			{Title: "Partition", Width: 10},
+		})
+		m.detailsComponent.SetConsumerDetails(Consumer(msg))
 	case ErrorMsg:
 		m.triggerErrorState()
 	case AddTopicCancel:
@@ -204,13 +282,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.resultComponent, cmd = m.resultComponent.Update(msg)
 	cmds = append(cmds, cmd)
+	m.detailsComponent, cmd = m.detailsComponent.Update(msg)
+	cmds = append(cmds, cmd)
+	m.infoComponent, cmd = m.infoComponent.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m *model) triggerErrorState() {
+func (m *model) triggerErrorState(err error) {
 	m.previousState = m.state
 	m.state = errorState
+	m.errorComponent.Message = err.Error()
 }
 
 func (m *model) restoreState() {
@@ -227,7 +310,7 @@ func (m *model) changeConnection(conn Connection) tea.Cmd {
 
 		service, err := NewService(conn, m.logger)
 		if err != nil {
-			return sendError(fmt.Errorf("Failed to re-create service: %w", err))
+			return ErrorMsg(fmt.Errorf("Failed to re-create service: %w", err))
 		}
 
 		m.service = service
@@ -240,14 +323,40 @@ func (m *model) loadTopics() tea.Cmd {
 	return func() tea.Msg {
 		topics, err := m.service.ListTopics()
 		if err != nil {
-			return sendError(err)
+			return ErrorMsg(err)
 		}
 
 		return TopicsLoadedMsg(topics)
 	}
 }
 
-func sendError(err error) tea.Cmd {
+func (m *model) loadTopicSettings(name string) tea.Cmd {
+	return func() tea.Msg {
+		config, err := m.service.GetTopicConfig(name)
+		if err != nil {
+			return ErrorMsg(err)
+		}
+
+		return TopicSettingsLoadedMsg(config)
+	}
+}
+
+func (m *model) loadConsumers() tea.Cmd {
+	return func() tea.Msg {
+		consumerGroups, err := m.service.ListConsumerGroups()
+		if err != nil {
+			return ErrorMsg(err)
+		}
+		consumers, err := m.service.ListConsumers(consumerGroups)
+		if err != nil {
+			return ErrorMsg(err)
+		}
+
+		return ConsumersLoadedMsg(consumers)
+	}
+}
+
+func sendErrorCmd(err error) tea.Cmd {
 	return func() tea.Msg {
 		return ErrorMsg(err)
 	}
@@ -269,22 +378,34 @@ func (m *model) View() string {
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
 	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
 	resultBorderStyle := defocusTable(&m.resultComponent.Model)
+	detailsBorderStyle := defocusTable(&m.detailsComponent.Model)
+
+	helpView := m.help.View(defaultKeys)
 
 	switch m.state {
 	case connectionState:
 		connectionBorderStyle = focusTable(&m.connectionTable.Model)
 	case selectionState:
 		selectionBorderStyle = focusTable(&m.selectionTable.Model)
-	case topicListState:
+	case resultState:
 		resultBorderStyle = focusTable(&m.resultComponent.Model)
+	case detailsState:
+		detailsBorderStyle = focusTable(&m.detailsComponent.Model)
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
-	rightPane := resultBorderStyle.Render(m.resultComponent.View())
+	resultPane := resultBorderStyle.Render(m.resultComponent.View())
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, rightPane)
+	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
+	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane, helpView)
+
+	if m.selectionTable.IsInfoSelected() {
+		resultPane = lipgloss.JoinVertical(lipgloss.Right, m.infoComponent.View(), helpView)
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane)
 }
 
 func makeFocused(s lipgloss.Style) lipgloss.Style {
@@ -351,6 +472,12 @@ func buildTable(cols []table.Column, rows []table.Row) table.Model {
 	t.SetStyles(s)
 
 	return t
+}
+
+func buildHelp() help.Model {
+	h := help.New()
+
+	return h
 }
 
 func Run() {

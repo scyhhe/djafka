@@ -11,6 +11,18 @@ func selectTopics() tea.Cmd {
 	}
 }
 
+func selectConsumers() tea.Cmd {
+	return func() tea.Msg {
+		return ConsumersSelectedMsg{}
+	}
+}
+
+func selectInfo() tea.Cmd {
+	return func() tea.Msg {
+		return InfoSelectedMsg{}
+	}
+}
+
 type Menu struct {
 	table.Model
 }
@@ -25,10 +37,18 @@ func (m Menu) Update(msg tea.Msg) (Menu, tea.Cmd) {
 
 	_, isClientConnected := msg.(ClientConnectedMsg)
 	if hasRowChanged || isClientConnected {
-		if currentRow == "Topics" {
+		if currentRow == TopicsLabel {
 			return m, tea.Batch(cmd, selectTopics())
+		} else if currentRow == ConsumerGroupsLabel {
+			return m, tea.Batch(cmd, selectConsumers())
+		} else if currentRow == InfoLabel {
+			return m, tea.Batch(cmd, selectInfo())
 		}
 	}
 
 	return m, cmd
+}
+
+func (m *Menu) IsInfoSelected() bool {
+	return m.SelectedRow()[0] == InfoLabel
 }

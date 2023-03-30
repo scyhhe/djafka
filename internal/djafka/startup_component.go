@@ -16,8 +16,14 @@ type StartupComponent struct {
 }
 
 const (
-	max = 500
-	min = 100
+	max         = 500
+	min         = 100
+	dogStanding = `
+                               .-.
+     (___________________________()6 \-,
+    (   ______________________   /''"'
+//\\                      //\\
+"" ""                     "" ""`
 )
 
 func tick() tea.Cmd {
@@ -58,9 +64,9 @@ func (c StartupComponent) View() string {
 	progress := c.Model.View()
 	text := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#555555")).
-		Width(50).
+		Width(80).
 		Align(lipgloss.Center).
-		Render("Initializing ...")
+		Render("\nInitializing ...\n\n" + dogStanding)
 
 	box := lipgloss.JoinVertical(lipgloss.Center, progress, text)
 

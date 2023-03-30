@@ -30,9 +30,9 @@ func InitialResetOffsetPrompt(log *log.Logger) ResetOffsetPrompt {
 
 	t = textinput.New()
 	t.CursorStyle = cursorStyle
-	t.CharLimit = 5
+	t.CharLimit = 10000
 	t.Focus()
-	t.Placeholder = "Offset"
+	t.Placeholder = "Consumer Group"
 	t.PromptStyle = focusedStyle
 	t.TextStyle = focusedStyle
 	t.Validate = validateTopic
@@ -42,7 +42,7 @@ func InitialResetOffsetPrompt(log *log.Logger) ResetOffsetPrompt {
 	t.CursorStyle = cursorStyle
 	t.CharLimit = 10000
 	t.Focus()
-	t.Placeholder = "Consumer Group"
+	t.Placeholder = "Topic Name"
 	t.PromptStyle = focusedStyle
 	t.TextStyle = focusedStyle
 	t.Validate = validateTopic
@@ -50,9 +50,9 @@ func InitialResetOffsetPrompt(log *log.Logger) ResetOffsetPrompt {
 
 	t = textinput.New()
 	t.CursorStyle = cursorStyle
-	t.CharLimit = 10000
+	t.CharLimit = 5
 	t.Focus()
-	t.Placeholder = "Topic Name"
+	t.Placeholder = "Offset"
 	t.PromptStyle = focusedStyle
 	t.TextStyle = focusedStyle
 	t.Validate = validateTopic
@@ -74,8 +74,8 @@ func (m ResetOffsetPrompt) Update(msg tea.Msg) (ResetOffsetPrompt, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "esc":
-			res := AddTopicCancel{}
-			m.logger.Println("Submiting AddTopicCancel", res)
+			res := ResetOffsetCancel{}
+			m.logger.Println("Submiting ResetOffsetCancel", res)
 			return m, func() tea.Msg { return res }
 
 		// Set focus to next input
@@ -85,13 +85,13 @@ func (m ResetOffsetPrompt) Update(msg tea.Msg) (ResetOffsetPrompt, tea.Cmd) {
 			// Did the user press enter while the submit button was focused?
 			// If so, exit.
 			if s == "enter" {
-				parsed, err := strconv.ParseInt(m.inputs[0].Value(), 10, 64)
+				parsed, err := strconv.ParseInt(m.inputs[2].Value(), 10, 64)
 				if err != nil {
 					return m, func() tea.Msg { return ErrorMsg(err) } //panic is annoying af
 				}
 				res := ResetOffsetMsg{
+					m.inputs[0].Value(),
 					m.inputs[1].Value(),
-					m.inputs[2].Value(),
 					parsed,
 				}
 				m.logger.Println("Submiting Values", res)
@@ -167,11 +167,11 @@ func (m ResetOffsetPrompt) View() string {
 	 %s
 	 %s %s
 	`,
-		inputStyle.Width(30).Render("Offset"),
+		inputStyle.Width(30).Render("Consumer Group"),
 		m.inputs[0].View(),
-		inputStyle.Width(12).Render("Consumer Group"),
+		inputStyle.Width(12).Render("Topic"),
 		m.inputs[1].View(),
-		inputStyle.Width(20).Render("Topic"),
+		inputStyle.Width(20).Render("Offset"),
 		m.inputs[2].View(),
 		"",
 		b.String(),

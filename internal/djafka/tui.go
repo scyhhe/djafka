@@ -107,7 +107,7 @@ func (m *model) Init() tea.Cmd {
 
 	addTopicPrompt := InitialAddTopicPrompt(m.logger)
 
-	resetOffsetPrompt := m.resetOffsetPrompt.Empty()
+	resetOffsetPrompt := InitialResetOffsetPrompt(m.logger)
 
 	detailsComponent := DetailsComponent{
 		Model: detailsTable,
@@ -153,6 +153,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	_, isAddTopicPromptResult := msg.(AddTopicSubmitMsg)
 	_, isResetOffsetPromptResult := msg.(ResetOffsetMsg)
 	_, isAddTopicCancel := msg.(AddTopicCancel)
+	_, isResetOffsetCancel := msg.(ResetOffsetCancel)
 
 	if m.state == errorState {
 		m.errorComponent, cmd = m.errorComponent.Update(msg)
@@ -170,6 +171,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
+	} else if isResetOffsetCancel {
+		m.restoreState()
 	} else if m.state == addTopicState && !isAddTopicPromptResult && !isAddTopicCancel {
 		m.addTopicPrompt, cmd = m.addTopicPrompt.Update(msg)
 		cmds = append(cmds, cmd)
@@ -225,6 +228,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t":
 			m.state = addTopicState
 		case "ctrl+o":
+			if m.state == resetOffsetState {
+				m.restoreState()
+			}
 			m.resetOffsetPrompt = InitialResetOffsetPrompt(m.logger)
 			m.state = resetOffsetState
 		case "?":
@@ -412,8 +418,6 @@ func (m *model) View() string {
 		return m.errorComponent.View()
 	} else if m.state == addTopicState {
 		return m.addTopicPrompt.View()
-	} else if m.state == resetOffsetState {
-		return m.resetOffsetPrompt.View()
 	}
 
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
@@ -439,6 +443,14 @@ func (m *model) View() string {
 
 	resultPane := resultBorderStyle.Render(m.resultComponent.View())
 
+	var resetPane string
+
+	if m.state != resetOffsetState {
+		resetPane = ""
+	} else {
+		resetPane = m.resetOffsetPrompt.View()
+	}
+
 	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane, helpView)
 
@@ -446,7 +458,7 @@ func (m *model) View() string {
 		resultPane = lipgloss.JoinVertical(lipgloss.Right, m.infoComponent.View(), helpView)
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane)
+	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane, resetPane)
 }
 
 func makeFocused(s lipgloss.Style) lipgloss.Style {

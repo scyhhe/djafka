@@ -29,3 +29,4 @@ type ResetOffsetMsg struct {
 	topicName     string
 	offset        int64
 }
+type ResetOffsetCancel struct{}

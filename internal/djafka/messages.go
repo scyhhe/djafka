@@ -15,6 +15,7 @@ type ConsumerSelectedMsg Consumer
 type ErrorMsg error
 type ResetMsg struct{}
 type InfoSelectedMsg struct{}
+type TickMsg struct{}
 
 type AddTopicSubmitMsg struct {
 	name              string

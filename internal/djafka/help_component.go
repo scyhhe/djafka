@@ -39,8 +39,8 @@ var defaultKeys = keyMap{
 		key.WithHelp("ctrl+t", "new topic"),
 	),
 	Reset: key.NewBinding(
-		key.WithKeys("r"),
-		key.WithHelp("r", "reset offset"),
+		key.WithKeys("ctrl+o", "o"),
+		key.WithHelp("ctrl+o", "reset offset"),
 	),
 	Help: key.NewBinding(
 		key.WithKeys("?"),

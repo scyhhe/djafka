@@ -297,7 +297,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if err != nil {
 			m.logger.Println("CreateTopic error", err)
 		}
-
+		cmd := m.loadTopics()
+		cmds = append(cmds, cmd)
 		m.restoreState()
 	case ResetOffsetMsg:
 		m.logger.Println("Received ResetOffsetMsg with: ", msg.consumerGroup, msg.topicName, msg.offset)

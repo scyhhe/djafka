@@ -22,7 +22,7 @@ func (c DetailsComponent) Update(msg tea.Msg) (DetailsComponent, tea.Cmd) {
 func (c *DetailsComponent) SetConsumerDetails(item Consumer) {
 	rows := []table.Row{}
 	for _, item := range item.TopicPartitions {
-		rows = append(rows, table.Row{item.TopicName, strconv.Itoa(int(item.Offset)), strconv.Itoa(int(item.Partition))})
+		rows = append(rows, table.Row{item.TopicName, item.Offset, strconv.Itoa(int(item.Partition))})
 	}
 
 	sort.Slice(rows, func(i, j int) bool {

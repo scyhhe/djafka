@@ -23,3 +23,9 @@ type AddTopicSubmitMsg struct {
 	replicationFactor int
 }
 type AddTopicCancel struct{}
+
+type ResetOffsetMsg struct {
+	consumerGroup string
+	topicName     string
+	offset        int64
+}

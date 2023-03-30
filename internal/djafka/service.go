@@ -270,7 +270,7 @@ func (s *Service) ResetConsumerOffsets(group string, topic string, offset int64)
 			Offset:    kafka.Offset(offset),
 		})
 	}
-	fmt.Println("ResetConsumerOffsets.partitionArg", partitionArg)
+	s.logger.Println("ResetConsumerOffsets.partitionArg", partitionArg)
 	result, err := s.client.AlterConsumerGroupOffsets(context.Background(), []kafka.ConsumerGroupTopicPartitions{
 		{
 			Group:      group,
@@ -284,8 +284,8 @@ func (s *Service) ResetConsumerOffsets(group string, topic string, offset int64)
 	for _, res := range result.ConsumerGroupsTopicPartitions {
 		for _, resPartition := range res.Partitions {
 			if resPartition.Error != nil {
-				return fmt.Errorf("Failed to alter consumer group offset for partition '%d': %w",
-					resPartition.Partition, err)
+				return fmt.Errorf("Failed to alter consumer group offset for partition '%d': %s",
+					resPartition.Partition, resPartition.Error.Error())
 			}
 		}
 	}

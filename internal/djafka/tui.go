@@ -260,7 +260,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		m.detailsComponent.SetConsumerDetails(Consumer(msg))
 	case ErrorMsg:
-		m.triggerErrorState()
+		m.triggerErrorState(msg)
 	case AddTopicCancel:
 		m.logger.Println("Received AddTopicCancel")
 		m.restoreState()

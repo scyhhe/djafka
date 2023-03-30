@@ -55,7 +55,7 @@ type Consumer struct {
 
 type ConsumerTopicPartition struct {
 	TopicName string
-	Offset    int64
+	Offset    string
 	Partition int32
 }
 
@@ -189,7 +189,7 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 			ctp := []ConsumerTopicPartition{}
 
 			for _, topicParts := range member.Assignment.TopicPartitions {
-				ctp = append(ctp, ConsumerTopicPartition{*topicParts.Topic, int64(topicParts.Offset), topicParts.Partition})
+				ctp = append(ctp, ConsumerTopicPartition{*topicParts.Topic, topicParts.Offset.String(), topicParts.Partition})
 			}
 
 			consumer.ConsumerId = member.ConsumerID

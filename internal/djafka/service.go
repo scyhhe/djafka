@@ -4,18 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"sort"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 )
-
-type Service struct {
-	client   *kafka.AdminClient
-	consumer *kafka.Consumer
-	// producer *kafka.Producer
-}
 
 type Connection struct {
 	Name            string `json:"name"`
@@ -64,6 +59,12 @@ type ConsumerTopicPartition struct {
 	Partition int32
 }
 
+type Service struct {
+	client   *kafka.AdminClient
+	consumer *kafka.Consumer
+	logger   *log.Logger
+	// producer *kafka.Producer
+}
 type Topic struct {
 	Name           string
 	PartitionCount int
@@ -74,7 +75,7 @@ type TopicConfig struct {
 	Settings map[string]string
 }
 
-func NewService(conn Connection) (*Service, error) {
+func NewService(conn Connection, logger *log.Logger) (*Service, error) {
 	client, err := kafka.NewAdminClient(&kafka.ConfigMap{
 		"bootstrap.servers": "localhost",
 	})
@@ -90,7 +91,11 @@ func NewService(conn Connection) (*Service, error) {
 		return nil, fmt.Errorf("Failed to initialise kafka consumer: %w", err)
 	}
 
-	return &Service{client, consumer}, nil
+	// producer, err := kafka.NewProducer(&kafka.ConfigMap{
+	// 	"bootstrap.servers": "localhost",
+	// })
+
+	return &Service{client, consumer, logger}, err
 }
 
 func (s *Service) Close() {
@@ -115,14 +120,19 @@ func (s *Service) ListTopics() ([]Topic, error) {
 	return topics, nil
 }
 
-func (s *Service) CreateTopic(name string, numPartitions int) (Topic, error) {
-	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: numPartitions, ReplicationFactor: 1, Config: map[string]string{}}
-	_, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
+func (s *Service) CreateTopic(name string, partitions int, replicationFactor int) (Topic, error) {
+	topicSpec := kafka.TopicSpecification{Topic: name, NumPartitions: partitions, ReplicationFactor: replicationFactor}
+	res, err := s.client.CreateTopics(context.Background(), []kafka.TopicSpecification{topicSpec})
+
 	if err != nil {
 		return Topic{}, fmt.Errorf("Failed to create new topic '%s': %w", name, err)
 	}
-
-	return Topic{topicSpec.Topic, numPartitions}, nil
+	for _, r := range res {
+		if r.Error.Code() != kafka.ErrNoError {
+			return Topic{}, fmt.Errorf("Failed to create new topic: %w", r.Error)
+		}
+	}
+	return Topic{topicSpec.Topic, partitions}, nil
 
 }
 

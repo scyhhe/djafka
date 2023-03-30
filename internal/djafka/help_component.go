@@ -35,8 +35,8 @@ var defaultKeys = keyMap{
 		key.WithHelp("→/l", "move right"),
 	),
 	New: key.NewBinding(
-		key.WithKeys("new", "n"),
-		key.WithHelp("n", "new topic"),
+		key.WithKeys("ctrl+t", "t"),
+		key.WithHelp("ctrl+t", "new topic"),
 	),
 	Reset: key.NewBinding(
 		key.WithKeys("r"),

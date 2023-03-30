@@ -42,4 +42,4 @@ You can cycle between windows/panes with `TAB`
 
 ```ctrl + t``` create a new topic in the currently active connection
 
-```ctrl+r``` reset the offset for the currently selected topic
+```ctrl + r``` reset the offset for the currently selected topic

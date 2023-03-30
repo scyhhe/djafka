@@ -225,10 +225,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+t":
 			m.state = addTopicState
 		case "ctrl+o":
-			if m.selectedConsumer != nil && m.selectedTopic != nil {
-				m.resetOffsetPrompt = InitialResetOffsetPrompt(m.logger, m.selectedConsumer.GroupId, m.selectedConsumer.TopicPartitions[0].TopicName)
-				m.state = resetOffsetState
-			}
+			m.resetOffsetPrompt = InitialResetOffsetPrompt(m.logger)
+			m.state = resetOffsetState
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
 		}

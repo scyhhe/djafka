@@ -18,31 +18,45 @@ type ResetOffsetPrompt struct {
 	inputs     []textinput.Model
 	cursorMode textinput.CursorMode
 	logger     *log.Logger
-	groupName  string
-	topicName  string
 }
 
-func InitialResetOffsetPrompt(log *log.Logger, group string, topic string) ResetOffsetPrompt {
+func InitialResetOffsetPrompt(log *log.Logger) ResetOffsetPrompt {
 	m := ResetOffsetPrompt{
-		inputs:    make([]textinput.Model, 1),
-		logger:    log,
-		groupName: group,
-		topicName: topic,
+		inputs: make([]textinput.Model, 3),
+		logger: log,
 	}
 
 	var t textinput.Model
 
 	t = textinput.New()
 	t.CursorStyle = cursorStyle
-	t.CharLimit = 32
+	t.CharLimit = 5
 	t.Focus()
 	t.Placeholder = "Offset"
 	t.PromptStyle = focusedStyle
 	t.TextStyle = focusedStyle
-	t.CharLimit = 5
 	t.Validate = validateTopic
-
 	m.inputs[0] = t
+
+	t = textinput.New()
+	t.CursorStyle = cursorStyle
+	t.CharLimit = 10000
+	t.Focus()
+	t.Placeholder = "Consumer Group"
+	t.PromptStyle = focusedStyle
+	t.TextStyle = focusedStyle
+	t.Validate = validateTopic
+	m.inputs[1] = t
+
+	t = textinput.New()
+	t.CursorStyle = cursorStyle
+	t.CharLimit = 10000
+	t.Focus()
+	t.Placeholder = "Topic Name"
+	t.PromptStyle = focusedStyle
+	t.TextStyle = focusedStyle
+	t.Validate = validateTopic
+	m.inputs[2] = t
 
 	return m
 }
@@ -76,8 +90,8 @@ func (m ResetOffsetPrompt) Update(msg tea.Msg) (ResetOffsetPrompt, tea.Cmd) {
 					return m, func() tea.Msg { return ErrorMsg(err) } //panic is annoying af
 				}
 				res := ResetOffsetMsg{
-					m.groupName,
-					m.topicName,
+					m.inputs[1].Value(),
+					m.inputs[2].Value(),
 					parsed,
 				}
 				m.logger.Println("Submiting Values", res)
@@ -147,10 +161,18 @@ func (m ResetOffsetPrompt) View() string {
 		`
 	 %s
 	 %s
+	 %s
+	 %s
+	 %s
+	 %s
 	 %s %s
 	`,
 		inputStyle.Width(30).Render("Offset"),
 		m.inputs[0].View(),
+		inputStyle.Width(12).Render("Consumer Group"),
+		m.inputs[1].View(),
+		inputStyle.Width(20).Render("Topic"),
+		m.inputs[2].View(),
 		"",
 		b.String(),
 	) + "\n"

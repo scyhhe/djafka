@@ -186,9 +186,19 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 		}
 
 		for _, member := range consumerDescription.Members {
-			ctp := []ConsumerTopicPartition{}
+			consumerGroupTopicPartitions := []kafka.ConsumerGroupTopicPartitions{
+				{
+					Group:      consumer.GroupId,
+					Partitions: member.Assignment.TopicPartitions,
+				},
+			}
+			consumerGroupOffsetResult, err := s.client.ListConsumerGroupOffsets(context.Background(), consumerGroupTopicPartitions)
+			if err != nil {
+				return nil, fmt.Errorf("Failed to fetch consumer group offsets: %w", err)
+			}
 
-			for _, topicParts := range member.Assignment.TopicPartitions {
+			ctp := []ConsumerTopicPartition{}
+			for _, topicParts := range consumerGroupOffsetResult.ConsumerGroupsTopicPartitions[0].Partitions {
 				ctp = append(ctp, ConsumerTopicPartition{*topicParts.Topic, topicParts.Offset.String(), topicParts.Partition})
 			}
 

@@ -43,6 +43,7 @@ type model struct {
 	service          *Service
 	help             HelpComponent
 	infoComponent    InfoComponent
+	startupComponent StartupComponent
 }
 
 func (m *model) Init() tea.Cmd {
@@ -111,6 +112,8 @@ func (m *model) Init() tea.Cmd {
 		panic(err)
 	}
 
+	startupComponent, cmd := NewStartupComponent()
+
 	*m = model{
 		logger:           m.logger,
 		state:            connectionState,
@@ -123,9 +126,10 @@ func (m *model) Init() tea.Cmd {
 		service:          nil,
 		help:             helpComponent,
 		infoComponent:    infoComponent,
+		startupComponent: startupComponent,
 	}
 
-	return changeConnection(config.Connections[0])
+	return tea.Batch(changeConnection(config.Connections[0]), cmd)
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -263,6 +267,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.infoComponent, cmd = m.infoComponent.Update(msg)
 	cmds = append(cmds, cmd)
+	m.startupComponent, cmd = m.startupComponent.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -344,6 +350,10 @@ func reset() tea.Cmd {
 }
 
 func (m *model) View() string {
+	if !m.startupComponent.Initialized() {
+		return m.startupComponent.View()
+	}
+
 	if m.state == errorState {
 		return m.errorComponent.View()
 	}

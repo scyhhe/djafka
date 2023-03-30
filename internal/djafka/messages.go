@@ -16,3 +16,4 @@ type ErrorMsg error
 type ResetMsg struct{}
 
 type InfoSelectedMsg struct{}
+type TickMsg struct{}

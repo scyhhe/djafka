@@ -26,6 +26,7 @@ const (
 	detailsState
 	errorState
 	addTopicState
+	resetOffsetState
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -33,19 +34,22 @@ var baseStyle = lipgloss.NewStyle().
 	BorderForeground(lipgloss.Color("240"))
 
 type model struct {
-	logger           *log.Logger
-	state            sessionState
-	previousState    sessionState
-	errorComponent   ErrorComponent
-	connectionTable  ConnectionComponent
-	resultComponent  ResultComponent
-	detailsComponent DetailsComponent
-	selectionTable   Menu
-	service          *Service
-	help             HelpComponent
-	infoComponent    InfoComponent
-	startupComponent StartupComponent
-	addTopicPrompt   AddTopicPrompt
+	logger            *log.Logger
+	state             sessionState
+	previousState     sessionState
+	errorComponent    ErrorComponent
+	connectionTable   ConnectionComponent
+	resultComponent   ResultComponent
+	detailsComponent  DetailsComponent
+	selectionTable    Menu
+	service           *Service
+	help              HelpComponent
+	infoComponent     InfoComponent
+	startupComponent  StartupComponent
+	addTopicPrompt    AddTopicPrompt
+	resetOffsetPrompt ResetOffsetPrompt
+	selectedConsumer  *Consumer
+	selectedTopic     *Topic
 }
 
 func (m *model) Init() tea.Cmd {
@@ -103,6 +107,8 @@ func (m *model) Init() tea.Cmd {
 
 	addTopicPrompt := InitialAddTopicPrompt(m.logger)
 
+	resetOffsetPrompt := m.resetOffsetPrompt.Empty()
+
 	detailsComponent := DetailsComponent{
 		Model: detailsTable,
 	}
@@ -119,19 +125,22 @@ func (m *model) Init() tea.Cmd {
 	startupComponent, cmd := NewStartupComponent()
 
 	*m = model{
-		logger:           m.logger,
-		state:            connectionState,
-		previousState:    connectionState,
-		errorComponent:   ErrorComponent{},
-		connectionTable:  connectionComponent,
-		resultComponent:  resultComponent,
-		detailsComponent: detailsComponent,
-		selectionTable:   menu,
-		service:          nil,
-		help:             helpComponent,
-		infoComponent:    infoComponent,
-		startupComponent: startupComponent,
-		addTopicPrompt:   addTopicPrompt,
+		logger:            m.logger,
+		state:             connectionState,
+		previousState:     connectionState,
+		errorComponent:    ErrorComponent{},
+		connectionTable:   connectionComponent,
+		resultComponent:   resultComponent,
+		detailsComponent:  detailsComponent,
+		selectionTable:    menu,
+		service:           nil,
+		help:              helpComponent,
+		infoComponent:     infoComponent,
+		startupComponent:  startupComponent,
+		addTopicPrompt:    addTopicPrompt,
+		resetOffsetPrompt: resetOffsetPrompt,
+		selectedConsumer:  nil,
+		selectedTopic:     nil,
 	}
 
 	return tea.Batch(changeConnection(config.Connections[0]), cmd)
@@ -141,7 +150,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
-	_, isPromptResult := msg.(AddTopicSubmitMsg)
+	_, isAddTopicPromptResult := msg.(AddTopicSubmitMsg)
+	_, isResetOffsetPromptResult := msg.(ResetOffsetMsg)
 	_, isAddTopicCancel := msg.(AddTopicCancel)
 
 	if m.state == errorState {
@@ -160,8 +170,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		return m, tea.Batch(cmds...)
-	} else if m.state == addTopicState && !isPromptResult && !isAddTopicCancel {
+	} else if m.state == addTopicState && !isAddTopicPromptResult && !isAddTopicCancel {
 		m.addTopicPrompt, cmd = m.addTopicPrompt.Update(msg)
+		cmds = append(cmds, cmd)
+		return m, tea.Batch(cmds...)
+	} else if m.state == resetOffsetState && !isResetOffsetPromptResult {
+		m.resetOffsetPrompt, cmd = m.resetOffsetPrompt.Update(msg)
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 	}
@@ -178,6 +192,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case resultState:
 		m.resultComponent.Focus()
 	case addTopicState:
+	case resetOffsetState:
 	case detailsState:
 		m.detailsComponent.Focus()
 	default:
@@ -209,6 +224,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "ctrl+t":
 			m.state = addTopicState
+		case "ctrl+o":
+			m.resetOffsetPrompt = InitialResetOffsetPrompt(m.logger)
+			m.state = resetOffsetState
 		case "?":
 			m.help.ShowAll = !m.help.ShowAll
 		}
@@ -242,6 +260,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		})
 		cmd := m.loadTopicSettings(msg.Name)
 		cmds = append(cmds, cmd)
+		m.logger.Println("Saving selected topic with name: ", msg.Name)
+		m.selectedTopic = &Topic{msg.Name, msg.PartitionCount}
 	case TopicSettingsLoadedMsg:
 		m.detailsComponent.SetTopicDetails(TopicConfig(msg))
 	case ConsumersLoadedMsg:
@@ -263,6 +283,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			{Title: "Partition", Width: 10},
 		})
 		m.detailsComponent.SetConsumerDetails(Consumer(msg))
+		m.selectedConsumer = &Consumer{msg.GroupId, msg.ConsumerId, msg.State, msg.TopicPartitions}
 	case ErrorMsg:
 		m.triggerErrorState(msg)
 	case AddTopicCancel:
@@ -272,10 +293,17 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Println("Received AddTopicSubmitMsg with values: ", msg.name, msg.paritions, msg.replicationFactor)
 		_, err := m.service.CreateTopic(msg.name, msg.paritions, msg.replicationFactor)
 		if err != nil {
-			m.logger.Println("CreateTopic error", err)
+			cmds = append(cmds, sendErrorCmd(fmt.Errorf("Failed to create topig: %w", err)))
 		}
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
+		m.restoreState()
+	case ResetOffsetMsg:
+		m.logger.Println("Received ResetOffsetMsg with: ", msg.consumerGroup, msg.topicName, msg.offset)
+		err := m.service.ResetConsumerOffsets(msg.consumerGroup, msg.topicName, msg.offset)
+		if err != nil {
+			cmds = append(cmds, sendErrorCmd(fmt.Errorf("Failed to reset offset: %w", err)))
+		}
 		m.restoreState()
 	}
 
@@ -384,6 +412,8 @@ func (m *model) View() string {
 		return m.errorComponent.View()
 	} else if m.state == addTopicState {
 		return m.addTopicPrompt.View()
+	} else if m.state == resetOffsetState {
+		return m.resetOffsetPrompt.View()
 	}
 
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)

@@ -90,7 +90,7 @@ func (m AddTopicPrompt) Update(msg tea.Msg) (AddTopicPrompt, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "esc":
+		case "ctrl+c", ESC, QUIT:
 			res := AddTopicCancel{}
 			m.logger.Println("Submiting AddTopicCancel", res)
 			return m, func() tea.Msg { return res }

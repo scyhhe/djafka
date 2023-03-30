@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
@@ -107,6 +108,10 @@ func (s *Service) ListTopics() ([]Topic, error) {
 		topics = append(topics, Topic{topic.Topic, len(topic.Partitions)})
 	}
 
+	sort.Slice(topics, func(i, j int) bool {
+		return topics[i].Name < topics[j].Name
+	})
+
 	return topics, nil
 }
 
@@ -149,6 +154,8 @@ func (s *Service) ListConsumerGroups() ([]string, error) {
 		groupIds = append(groupIds, group.GroupID)
 	}
 
+	sort.StringSlice(groupIds).Sort()
+
 	return groupIds, nil
 }
 
@@ -180,6 +187,10 @@ func (s *Service) ListConsumers(groupIds []string) ([]Consumer, error) {
 		}
 		consumers = append(consumers, consumer)
 	}
+
+	sort.Slice(consumers, func(i, j int) bool {
+		return consumers[i].ConsumerId < consumers[j].ConsumerId
+	})
 
 	return consumers, nil
 }

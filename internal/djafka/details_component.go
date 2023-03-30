@@ -1,6 +1,7 @@
 package djafka
 
 import (
+	"sort"
 	"strconv"
 
 	"github.com/charmbracelet/bubbles/table"
@@ -23,6 +24,11 @@ func (c *DetailsComponent) SetConsumerDetails(item Consumer) {
 	for _, item := range item.TopicPartitions {
 		rows = append(rows, table.Row{item.TopicName, strconv.Itoa(int(item.Offset)), strconv.Itoa(int(item.Partition))})
 	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i][0] < rows[j][0]
+	})
+
 	c.Model.SetRows(rows)
 }
 
@@ -31,5 +37,10 @@ func (c *DetailsComponent) SetTopicDetails(item TopicConfig) {
 	for key, value := range item.Settings {
 		rows = append(rows, table.Row{key, value})
 	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i][0] < rows[j][0]
+	})
+
 	c.Model.SetRows(rows)
 }

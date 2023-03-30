@@ -295,7 +295,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logger.Println("Received AddTopicSubmitMsg with values: ", msg.name, msg.paritions, msg.replicationFactor)
 		_, err := m.service.CreateTopic(msg.name, msg.paritions, msg.replicationFactor)
 		if err != nil {
-			m.logger.Println("CreateTopic error", err)
+			cmds = append(cmds, sendErrorCmd(fmt.Errorf("Failed to create topig: %w", err)))
 		}
 		cmd := m.loadTopics()
 		cmds = append(cmds, cmd)
@@ -303,9 +303,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ResetOffsetMsg:
 		m.logger.Println("Received ResetOffsetMsg with: ", msg.consumerGroup, msg.topicName, msg.offset)
 		err := m.service.ResetConsumerOffsets(msg.consumerGroup, msg.topicName, msg.offset)
-
 		if err != nil {
-			m.logger.Println("CreateTopic error", err)
+			cmds = append(cmds, sendErrorCmd(fmt.Errorf("Failed to reset offset: %w", err)))
 		}
 		m.restoreState()
 	}

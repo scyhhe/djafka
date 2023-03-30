@@ -42,6 +42,7 @@ type model struct {
 	selectionTable   Menu
 	service          *Service
 	help             HelpComponent
+	infoComponent    InfoComponent
 }
 
 func (m *model) Init() tea.Cmd {
@@ -105,6 +106,11 @@ func (m *model) Init() tea.Cmd {
 		Model: help,
 	}
 
+	infoComponent, err := NewInfoComponent()
+	if err != nil {
+		panic(err)
+	}
+
 	*m = model{
 		logger:           m.logger,
 		state:            connectionState,
@@ -116,6 +122,7 @@ func (m *model) Init() tea.Cmd {
 		selectionTable:   menu,
 		service:          nil,
 		help:             helpComponent,
+		infoComponent:    infoComponent,
 	}
 
 	return changeConnection(config.Connections[0])
@@ -254,6 +261,8 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.detailsComponent, cmd = m.detailsComponent.Update(msg)
 	cmds = append(cmds, cmd)
+	m.infoComponent, cmd = m.infoComponent.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -361,9 +370,13 @@ func (m *model) View() string {
 		selectionBorderStyle.Render(m.selectionTable.View()))
 
 	resultPane := resultBorderStyle.Render(m.resultComponent.View())
-	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 
+	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane, helpView)
+
+	if m.selectionTable.IsInfoSelected() {
+		resultPane = lipgloss.JoinVertical(lipgloss.Right, m.infoComponent.View(), helpView)
+	}
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, menuPane, resultPane)
 }

@@ -14,3 +14,5 @@ type ConsumerSelectedMsg Consumer
 
 type ErrorMsg error
 type ResetMsg struct{}
+
+type InfoSelectedMsg struct{}

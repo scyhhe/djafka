@@ -195,6 +195,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
 		m.selectionTable.SetHeight((msg.Height / 2) - 4)
 		m.resultComponent.SetHeight((msg.Height / 2) - 4)
+		m.detailsComponent.SetHeight((msg.Height / 2) - 4)
 
 	// Custom messages
 	case ConnectionChangedMsg:

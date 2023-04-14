@@ -7,33 +7,58 @@ import (
 
 type MenuComponent struct {
 	table.Model
+	selectionChanged bool
 }
 
-func (m MenuComponent) Update(msg tea.Msg) (MenuComponent, tea.Cmd) {
-	newTable, cmd := m.Model.Update(msg)
-	m.Model = newTable
+func NewMenuComponent() MenuComponent {
+	menuColumns := []table.Column{{Title: MenuLabel, Width: 30}}
+	menuRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
 
-	return m, cmd
+	return MenuComponent{
+		Model:            buildTable(menuColumns, menuRows),
+		selectionChanged: false,
+	}
 }
 
-func (m *MenuComponent) View() string {
-	logger.Printf("Focused: %t\n", m.Focused())
-	defocusTable(&m.Model)
-	if m.Focused() {
-		focusTable(&m.Model)
+func (c MenuComponent) Update(msg tea.Msg) (MenuComponent, tea.Cmd) {
+	previousEntry := c.SelectedEntry()
+	newTable, cmd := c.Model.Update(msg)
+	c.Model = newTable
+
+	c.selectionChanged = c.SelectedEntry() != previousEntry
+
+	return c, cmd
+}
+
+func (c *MenuComponent) View() string {
+	defocusTable(&c.Model)
+	if c.Focused() {
+		focusTable(&c.Model)
 	}
 
-	return m.Model.View()
+	return c.Model.View()
 }
 
-func (m *MenuComponent) IsTopicsSelected() bool {
-	return m.SelectedRow()[0] == TopicsLabel
+func (c *MenuComponent) SelectedEntry() string {
+	if len(c.Rows()) < 1 {
+		return ""
+	}
+
+	return c.SelectedRow()[0]
 }
 
-func (m *MenuComponent) IsConsumerGroupssSelected() bool {
-	return m.SelectedRow()[0] == ConsumerGroupsLabel
+func (c *MenuComponent) IsTopicsSelected() bool {
+	return c.SelectedEntry() == TopicsLabel
 }
 
-func (m *MenuComponent) IsInfoSelected() bool {
-	return m.SelectedRow()[0] == InfoLabel
+func (c *MenuComponent) IsConsumerGroupssSelected() bool {
+	return c.SelectedEntry() == ConsumerGroupsLabel
+}
+
+func (c *MenuComponent) IsInfoSelected() bool {
+	return c.SelectedEntry() == InfoLabel
+}
+
+func (c *MenuComponent) SelectionChanged() bool {
+	return c.selectionChanged
 }

@@ -6,45 +6,34 @@ import (
 )
 
 type MenuComponent struct {
-	table.Model
-	selectionChanged bool
+	TableComponent
 }
 
 func NewMenuComponent() MenuComponent {
-	menuColumns := []table.Column{{Title: MenuLabel, Width: 30}}
-	menuRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
+	cols := []table.Column{{Title: MenuLabel, Width: 30}}
+	rows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
+	tableComponent := NewTableComponent(cols)
+	tableComponent.SetRows(rows)
 
 	return MenuComponent{
-		Model:            buildTable(menuColumns, menuRows),
-		selectionChanged: false,
+		TableComponent: tableComponent,
 	}
 }
 
 func (c MenuComponent) Update(msg tea.Msg) (MenuComponent, tea.Cmd) {
-	previousEntry := c.SelectedEntry()
-	newTable, cmd := c.Model.Update(msg)
-	c.Model = newTable
-
-	c.selectionChanged = c.SelectedEntry() != previousEntry
+	newTable, cmd := c.TableComponent.Update(msg)
+	c.TableComponent = newTable
 
 	return c, cmd
 }
 
-func (c *MenuComponent) View() string {
-	defocusTable(&c.Model)
-	if c.Focused() {
-		focusTable(&c.Model)
-	}
-
-	return c.Model.View()
-}
-
 func (c *MenuComponent) SelectedEntry() string {
-	if len(c.Rows()) < 1 {
+	row := c.SelectedRow()
+	if row == nil {
 		return ""
 	}
 
-	return c.SelectedRow()[0]
+	return (*row)[0]
 }
 
 func (c *MenuComponent) IsTopicsSelected() bool {
@@ -57,8 +46,4 @@ func (c *MenuComponent) IsConsumerGroupssSelected() bool {
 
 func (c *MenuComponent) IsInfoSelected() bool {
 	return c.SelectedEntry() == InfoLabel
-}
-
-func (c *MenuComponent) SelectionChanged() bool {
-	return c.selectionChanged
 }

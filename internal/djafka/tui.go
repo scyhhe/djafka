@@ -122,6 +122,8 @@ func (m *model) Init() tea.Cmd {
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	m.logger.Printf("Received message: %T", msg)
+
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -288,6 +290,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.menuComponent.Focus()
 	case resultState:
 		m.topicsComponent.Focus()
+	case detailsState:
 	case addTopicState:
 	case resetOffsetState:
 	default:

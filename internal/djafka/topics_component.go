@@ -12,23 +12,21 @@ import (
 type TopicConfigLoader func(topic Topic) (TopicConfig, error)
 
 type TopicsComponent struct {
-	table.Model
+	TableComponent
 	topics               map[string]Topic
-	topicConfig          *TopicConfig
-	topicConfigComponent table.Model
+	topicConfigComponent TableComponent
 	topicConfigLoader    TopicConfigLoader
 	needsReload          bool
 }
 
 func NewTopicsComponent(loader TopicConfigLoader) TopicsComponent {
 	return TopicsComponent{
-		Model: buildEmptyTable([]table.Column{
+		TableComponent: NewTableComponent([]table.Column{
 			{Title: TopicsLabel, Width: 30},
 			{Title: "# of Partitions", Width: 30},
 		}),
-		topics:      map[string]Topic{},
-		topicConfig: nil,
-		topicConfigComponent: buildEmptyTable([]table.Column{
+		topics: map[string]Topic{},
+		topicConfigComponent: NewTableComponent([]table.Column{
 			{Title: "Topic Name", Width: 30},
 			{Title: "Offset", Width: 20},
 			{Title: "Partition", Width: 10},
@@ -40,28 +38,32 @@ func NewTopicsComponent(loader TopicConfigLoader) TopicsComponent {
 func (c TopicsComponent) Update(msg tea.Msg) (TopicsComponent, tea.Cmd) {
 	cmds := []tea.Cmd{}
 
+	newTable, cmd := c.TableComponent.Update(msg)
+	c.TableComponent = newTable
+	cmds = append(cmds, cmd)
+
+	if c.SelectionChanged() {
+		c.needsReload = true
+	}
+
 	if c.needsReload {
 		cmds = append(cmds, c.loadTopicConfig(c.SelectedTopic()))
 		c.needsReload = false
 	}
-	newTable, cmd := c.Model.Update(msg)
-	c.Model = newTable
-	cmds = append(cmds, cmd)
 
-	// TODO: Handle TopicConfigLoaded message
+	switch msg := msg.(type) {
+	case TopicSettingsLoadedMsg:
+		c.setTopicConfig(TopicConfig(msg))
+	}
 
 	return c, tea.Batch(cmds...)
 }
 
 func (c *TopicsComponent) View() string {
-	defocusTable(&c.Model)
-	if c.Focused() {
-		focusTable(&c.Model)
-	}
-
 	// TODO: Handle focus for sub-component
+	c.topicConfigComponent.Blur()
 
-	resultPane := baseStyle.Render(c.Model.View())
+	resultPane := baseStyle.Render(c.TableComponent.View())
 	detailsPane := baseStyle.Render(c.topicConfigComponent.View())
 
 	return lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane)
@@ -83,16 +85,17 @@ func (c *TopicsComponent) SetTopics(topics []Topic) {
 
 	sort.Slice(rows, func(i, j int) bool { return rows[i][0] < rows[j][0] })
 
-	c.Model.SetRows(rows)
-	c.Model.SetCursor(0)
+	c.TableComponent.SetRows(rows)
+	c.TableComponent.SetCursor(0)
 }
 
 func (c *TopicsComponent) SelectedTopic() *Topic {
-	if len(c.Rows()) < 1 {
+	row := c.SelectedRow()
+	if row == nil {
 		return nil
 	}
 
-	topic := c.topics[c.SelectedRow()[0]]
+	topic := c.topics[(*row)[0]]
 	return &topic
 }
 
@@ -109,4 +112,17 @@ func (c *TopicsComponent) loadTopicConfig(topic *Topic) tea.Cmd {
 
 		return TopicSettingsLoadedMsg(config)
 	}
+}
+
+func (c *TopicsComponent) setTopicConfig(config TopicConfig) {
+	rows := []table.Row{}
+	for key, value := range config.Settings {
+		rows = append(rows, table.Row{key, value})
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i][0] < rows[j][0]
+	})
+
+	c.topicConfigComponent.SetRows(rows)
 }

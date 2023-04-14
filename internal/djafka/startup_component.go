@@ -16,8 +16,8 @@ type StartupComponent struct {
 }
 
 const (
-	max         = 500
-	min         = 100
+	max         = 50
+	min         = 10
 	dogStanding = `
                                .-.
      (___________________________()6 \-,

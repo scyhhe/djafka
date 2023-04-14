@@ -29,9 +29,13 @@ const (
 	resetOffsetState
 )
 
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.NormalBorder()).
-	BorderForeground(lipgloss.Color("240"))
+var (
+	baseStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240"))
+
+	focusedTableStyle = makeFocused(baseStyle.Copy())
+)
 
 type model struct {
 	logger            *log.Logger
@@ -41,7 +45,7 @@ type model struct {
 	connectionTable   ConnectionComponent
 	resultComponent   ResultComponent
 	detailsComponent  DetailsComponent
-	selectionTable    Menu
+	menuComponent     MenuComponent
 	service           *Service
 	help              HelpComponent
 	infoComponent     InfoComponent
@@ -67,11 +71,6 @@ func (m *model) Init() tea.Cmd {
 		connectionRows = append(connectionRows, table.Row{connection.Name})
 	}
 
-	selectionColumns := []table.Column{
-		{Title: MenuLabel, Width: 30},
-	}
-	selectionRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
-
 	resultColumns := []table.Column{
 		{Title: ResultLabel, Width: 60},
 	}
@@ -84,7 +83,6 @@ func (m *model) Init() tea.Cmd {
 	detailRows := []table.Row{}
 
 	connectionTable := buildTable(connectionColumns, connectionRows)
-	selectionTable := buildTable(selectionColumns, selectionRows)
 	resultTable := buildTable(resultColumns, resultRows)
 	detailsTable := buildTable(detailColumns, detailRows)
 
@@ -97,8 +95,10 @@ func (m *model) Init() tea.Cmd {
 		config: config,
 	}
 
-	menu := Menu{
-		Model: selectionTable,
+	menuColumns := []table.Column{{Title: MenuLabel, Width: 30}}
+	menuRows := []table.Row{{TopicsLabel}, {ConsumerGroupsLabel}, {InfoLabel}}
+	menu := MenuComponent{
+		Model: buildTable(menuColumns, menuRows),
 	}
 
 	resultComponent := ResultComponent{
@@ -132,7 +132,7 @@ func (m *model) Init() tea.Cmd {
 		connectionTable:   connectionComponent,
 		resultComponent:   resultComponent,
 		detailsComponent:  detailsComponent,
-		selectionTable:    menu,
+		menuComponent:     menu,
 		service:           nil,
 		help:              helpComponent,
 		infoComponent:     infoComponent,
@@ -179,35 +179,16 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		return m, tea.Batch(cmds...)
 	}
-	m.connectionTable.Blur()
-	m.selectionTable.Blur()
-	m.resultComponent.Blur()
-	m.detailsComponent.Blur()
-
-	switch m.state {
-	case connectionState:
-		m.connectionTable.Focus()
-	case selectionState:
-		m.selectionTable.Focus()
-	case resultState:
-		m.resultComponent.Focus()
-	case addTopicState:
-	case resetOffsetState:
-	case detailsState:
-		m.detailsComponent.Focus()
-	default:
-		panic("unhandled state")
-	}
 
 	switch msg := msg.(type) {
 	// Key presses
 	case tea.KeyMsg:
 		switch msg.String() {
 		case ESC:
-			if m.selectionTable.Focused() {
-				m.selectionTable.Blur()
+			if m.menuComponent.Focused() {
+				m.menuComponent.Blur()
 			} else {
-				m.selectionTable.Focus()
+				m.menuComponent.Focus()
 			}
 		case QUIT, CANCEL:
 			return m, tea.Quit
@@ -234,7 +215,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Resizing
 	case tea.WindowSizeMsg:
 		m.connectionTable.SetHeight((msg.Height / 2) - 4)
-		m.selectionTable.SetHeight((msg.Height / 2) - 4)
+		m.menuComponent.SetHeight((msg.Height / 2) - 4)
 		m.resultComponent.SetHeight((msg.Height / 2) - 4)
 		m.detailsComponent.SetHeight((msg.Height / 2) - 4)
 
@@ -311,7 +292,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.connectionTable, cmd = m.connectionTable.Update(msg)
 	cmds = append(cmds, cmd)
-	m.selectionTable, cmd = m.selectionTable.Update(msg)
+	m.menuComponent, cmd = m.menuComponent.Update(msg)
 	cmds = append(cmds, cmd)
 	m.resultComponent, cmd = m.resultComponent.Update(msg)
 	cmds = append(cmds, cmd)
@@ -321,6 +302,26 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.startupComponent, cmd = m.startupComponent.Update(msg)
 	cmds = append(cmds, cmd)
+
+	m.connectionTable.Blur()
+	m.menuComponent.Blur()
+	m.resultComponent.Blur()
+	m.detailsComponent.Blur()
+
+	switch m.state {
+	case connectionState:
+		m.connectionTable.Focus()
+	case selectionState:
+		m.menuComponent.Focus()
+	case resultState:
+		m.resultComponent.Focus()
+	case addTopicState:
+	case resetOffsetState:
+	case detailsState:
+		m.detailsComponent.Focus()
+	default:
+		panic("unhandled state")
+	}
 
 	return m, tea.Batch(cmds...)
 }
@@ -417,7 +418,7 @@ func (m *model) View() string {
 	}
 
 	connectionBorderStyle := defocusTable(&m.connectionTable.Model)
-	selectionBorderStyle := defocusTable(&m.selectionTable.Model)
+	menuBorderStyle := baseStyle
 	resultBorderStyle := defocusTable(&m.resultComponent.Model)
 	detailsBorderStyle := defocusTable(&m.detailsComponent.Model)
 
@@ -427,7 +428,7 @@ func (m *model) View() string {
 	case connectionState:
 		connectionBorderStyle = focusTable(&m.connectionTable.Model)
 	case selectionState:
-		selectionBorderStyle = focusTable(&m.selectionTable.Model)
+		menuBorderStyle = focusedTableStyle
 	case resultState:
 		resultBorderStyle = focusTable(&m.resultComponent.Model)
 	case detailsState:
@@ -435,14 +436,14 @@ func (m *model) View() string {
 	}
 
 	menuPane := lipgloss.JoinVertical(lipgloss.Left, connectionBorderStyle.Render(m.connectionTable.View()),
-		selectionBorderStyle.Render(m.selectionTable.View()))
+		menuBorderStyle.Render(m.menuComponent.View()))
 
 	resultPane := resultBorderStyle.Render(m.resultComponent.View())
 
 	detailsPane := detailsBorderStyle.Render(m.detailsComponent.View())
 	resultPane = lipgloss.JoinVertical(lipgloss.Right, resultPane, detailsPane, helpView)
 
-	if m.selectionTable.IsInfoSelected() {
+	if m.menuComponent.IsInfoSelected() {
 		resultPane = lipgloss.JoinVertical(lipgloss.Right, m.infoComponent.View(), helpView)
 	}
 
@@ -521,6 +522,8 @@ func buildHelp() help.Model {
 	return h
 }
 
+var logger *log.Logger
+
 func Run() {
 	f, err := tea.LogToFile("debug.log", "debug")
 	if err != nil {
@@ -528,7 +531,7 @@ func Run() {
 		os.Exit(1)
 	}
 	defer f.Close()
-	logger := log.Default()
+	logger = log.Default()
 	logger.SetOutput(f)
 
 	if _, err := tea.NewProgram(&model{logger: logger}, tea.WithAltScreen()).Run(); err != nil {
